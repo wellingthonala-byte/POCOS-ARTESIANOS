@@ -37,7 +37,7 @@ export default async function EtapaPerfuracao({
             : "",
           numeroArt: poco.numeroArt ?? "",
         }}
-        proximaEtapaUrl="/pocos"
+        proximaEtapaUrl={`/pocos/${poco.id}/litologia`}
       />
     </main>
   );

@@ -112,6 +112,7 @@ src/
       [id]/
         identificacao/page.tsx  # Etapa 1 (editar poço existente)
         perfuracao/page.tsx     # Etapa 2
+        litologia/page.tsx      # Etapa 3
       page.tsx
   components/
     pocos/               # Componentes de tela específicos de poço

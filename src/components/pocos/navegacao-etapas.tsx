@@ -10,7 +10,7 @@ type Etapa = {
 const etapas: Etapa[] = [
   { chave: "identificacao", numero: 1, rotulo: "Identificação", disponivel: true },
   { chave: "perfuracao", numero: 2, rotulo: "Perfuração", disponivel: true },
-  { chave: "litologia", numero: 3, rotulo: "Litologia", disponivel: false },
+  { chave: "litologia", numero: 3, rotulo: "Litologia", disponivel: true },
   { chave: "construtivo", numero: 4, rotulo: "Construtivo", disponivel: false },
   { chave: "niveis-vazao", numero: 5, rotulo: "Níveis e vazão", disponivel: false },
 ];

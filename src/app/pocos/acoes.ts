@@ -154,3 +154,85 @@ export async function atualizarPerfuracao(
     return tratarErro(erro);
   }
 }
+
+export async function adicionarCamadaLitologica(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  formData: FormData
+): Promise<EstadoFormularioPoco> {
+  const descricao = String(formData.get("descricao") ?? "").trim();
+  const profundidadeFinalTexto = String(formData.get("profundidadeFinal") ?? "")
+    .trim()
+    .replace(",", ".");
+
+  if (!descricao) return { erro: "Informe a descrição da camada." };
+
+  const profundidadeFinal = Number(profundidadeFinalTexto);
+  if (!profundidadeFinalTexto || Number.isNaN(profundidadeFinal) || profundidadeFinal <= 0) {
+    return { erro: "Profundidade final inválida." };
+  }
+
+  try {
+    const criadoPorId = await obterUsuarioAtualId();
+
+    await prisma.$transaction(async (tx) => {
+      const ultimaCamada = await tx.camadaLitologica.findFirst({
+        where: { pocoId, excluidoEm: null },
+        orderBy: { ordem: "desc" },
+      });
+
+      const profundidadeInicial = ultimaCamada
+        ? ultimaCamada.profundidadeFinal.toNumber()
+        : 0;
+
+      if (profundidadeFinal <= profundidadeInicial) {
+        throw new Error(
+          "A profundidade final deve ser maior que a profundidade inicial da camada."
+        );
+      }
+
+      await tx.camadaLitologica.create({
+        data: {
+          pocoId,
+          ordem: (ultimaCamada?.ordem ?? 0) + 1,
+          profundidadeInicial,
+          profundidadeFinal,
+          descricao,
+          criadoPorId,
+        },
+      });
+    });
+  } catch (erro) {
+    return { erro: erro instanceof Error ? erro.message : "Erro ao salvar a camada." };
+  }
+
+  revalidatePath(`/pocos/${pocoId}/litologia`);
+  return { sucesso: true };
+}
+
+export async function removerUltimaCamadaLitologica(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  _formData: FormData
+): Promise<EstadoFormularioPoco> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    const ultimaCamada = await prisma.camadaLitologica.findFirst({
+      where: { pocoId, excluidoEm: null },
+      orderBy: { ordem: "desc" },
+    });
+    if (!ultimaCamada) {
+      return { erro: "Não há camada para remover." };
+    }
+    await prisma.camadaLitologica.update({
+      where: { id: ultimaCamada.id },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return { erro: erro instanceof Error ? erro.message : "Erro ao remover a camada." };
+  }
+
+  revalidatePath(`/pocos/${pocoId}/litologia`);
+  return { sucesso: true };
+}

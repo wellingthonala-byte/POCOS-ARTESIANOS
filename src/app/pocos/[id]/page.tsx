@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { NavegacaoEtapas } from "@/components/pocos/navegacao-etapas";
 import { PerfilPoco } from "@/components/pocos/perfil-poco";
 import { mapearDadosParaPerfil, temDadosDePerfil } from "@/lib/perfil/mapear-dados";
+import { EspelharPocoOffline } from "@/components/pwa/espelhar-poco-offline";
 import { rotulosStatusPoco, coresStatusPoco } from "@/lib/rotulos";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,23 @@ export default async function DetalheDoPoco({
 
   return (
     <main className="mx-auto max-w-2xl p-4 pb-24">
+      <EspelharPocoOffline
+        dados={{
+          id: poco.id,
+          identificacao: poco.identificacao,
+          status: poco.status,
+          obraNome: poco.obra.nome,
+          clienteNome: poco.obra.cliente.nome,
+          municipio: poco.municipio,
+          uf: poco.uf,
+          profundidadeFinalTexto: poco.profundidadeFinal
+            ? poco.profundidadeFinal.toString()
+            : null,
+          camadas,
+          construtivo,
+          profundidadeTotal,
+        }}
+      />
       <div className="mb-1 flex items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">Poço {poco.identificacao}</h1>
         <span

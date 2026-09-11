@@ -122,7 +122,10 @@ src/
         relatorio/
           pdf/route.ts          # GET → PDF do relatório (Fase 3)
           excel/route.ts        # GET → planilha Excel do relatório (Fase 3)
-    offline/page.tsx      # Fallback do service worker quando não há rede nem cache (Fase 5)
+    offline/
+      page.tsx             # Fallback do service worker quando não há rede nem cache (Fase 5) —
+                           # de propósito NÃO é componente cliente do Next, ver script-offline.ts
+      script-offline.ts     # Script vanilla (não é bundle React) injetado inline nessa página
   components/
     navegacao-principal.tsx  # Cabeçalho com links para Poços/Obras/Clientes/Configurações
     clientes/
@@ -134,6 +137,8 @@ src/
     pwa/                  # Fase 5
       registrar-service-worker.tsx  # Só o efeito de registrar o service worker
       indicador-conectividade.tsx    # Indicador permanente online/offline no cabeçalho
+      espelhar-poco-offline.tsx      # Grava o detalhe do poço aberto agora em IndexedDB
+      espelhar-lista-pocos-offline.tsx  # Idem, resumo de cada poço da lista
   hooks/
     usar-rascunho-formulario.ts  # Autosave de formulário em localStorage
     usar-lista-trechos.ts        # Wiring comum às listas de trechos encadeados
@@ -157,6 +162,8 @@ src/
       perfil.ts             # Orquestra as duas colunas + régua num único SVG (`gerarSvgPerfilPoco`)
       mapear-dados.ts        # Poço do Prisma (campos Decimal) → formato plano do desenho —
                              # única fonte usada pela tela e pelo relatório em PDF
+    offline/
+      banco-local.ts         # Espelho em IndexedDB dos poços já abertos com internet (Fase 5)
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
 public/
   manifest.json           # Manifest da PWA (Fase 5)
@@ -339,6 +346,33 @@ sincronização ficam para as próximas etapas.
   teste (parece um request de um worker não seguir a emulação de rede da
   página no Chromium/CDP). O teste que funciona de verdade é matar o
   processo do servidor e navegar para uma rota ainda não cacheada.
+- **Etapa 2 — espelho de leitura em IndexedDB (`src/lib/offline/banco-local.ts`)**:
+  cada visita com internet à lista de poços ou ao detalhe de um poço grava
+  (via `EspelharListaPocosOffline`/`EspelharPocoOffline`, montados nas
+  respectivas páginas) um snapshot em IndexedDB. É só leitura — lançar/
+  editar dado ainda exige conexão, isso fica pra fila de sincronização de
+  uma etapa futura. `salvarPocoOffline` faz merge com o que já existe em
+  vez de sobrescrever: a lista só manda campos de resumo (identificação,
+  status, obra/cliente), o detalhe manda tudo (+ litologia/construtivo via
+  `mapearDadosParaPerfil`) — visitar a lista depois de já ter visto o
+  detalhe não pode apagar o que foi espelhado antes.
+- **A página `/offline` NÃO pode ser um componente cliente do Next
+  (sem hooks, sem `"use client"`)**: foi a primeira versão desta etapa e
+  quebrou — o Next dá a cada rota cliente seu próprio chunk JS, e esse
+  chunk só é buscado/cacheado quando alguém efetivamente visita a rota; como
+  ninguém abre `/offline` estando online, o chunk nunca está em cache e a
+  página trava com `ChunkLoadError` bem no momento em que devia funcionar
+  sem rede. A solução (`script-offline.ts`) é um script vanilla (sem
+  React) injetado inline via `<script dangerouslySetInnerHTML>` — inline
+  quer dizer que ele é parte do mesmo HTML que o `cache.addAll` do service
+  worker já guarda pra essa rota, sem requisição extra nenhuma. Esse script
+  duplica a leitura do IndexedDB (`abrirBanco`/`buscarPoco`/`listarPocos`)
+  e os rótulos/cores de status — mantenha em sincronia com
+  `banco-local.ts`/`rotulos.ts` se algo aí mudar. Os links dentro dessa
+  página usam `<a>` normal, não `<Link>` do Next: uma navegação cliente
+  buscaria o RSC payload pela rede e falharia sem cair de volta no service
+  worker do jeito esperado — só uma navegação de página cheia (`<a>`, ou
+  recarregar/digitar a URL) é interceptada pelo `fetch` handler.
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

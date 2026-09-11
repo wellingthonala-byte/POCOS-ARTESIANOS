@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { rotulosStatusPoco, coresStatusPoco } from "@/lib/rotulos";
+import { EspelharListaPocosOffline } from "@/components/pwa/espelhar-lista-pocos-offline";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,20 @@ export default async function ListaDePocos() {
 
   return (
     <main className="mx-auto max-w-2xl p-4 pb-24">
+      <EspelharListaPocosOffline
+        pocos={pocos.map((poco) => ({
+          id: poco.id,
+          identificacao: poco.identificacao,
+          status: poco.status,
+          obraNome: poco.obra.nome,
+          clienteNome: poco.obra.cliente.nome,
+          municipio: poco.municipio,
+          uf: poco.uf,
+          profundidadeFinalTexto: poco.profundidadeFinal
+            ? poco.profundidadeFinal.toString()
+            : null,
+        }))}
+      />
       <h1 className="mb-4 text-2xl font-bold">Poços</h1>
 
       {pocos.length === 0 ? (

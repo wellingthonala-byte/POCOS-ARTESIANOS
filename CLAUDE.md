@@ -105,10 +105,20 @@ calcular o diff de cada migration.
 
 ```
 src/
-  app/                 # Rotas do App Router (páginas e layouts)
+  app/
+    pocos/               # Lista de poços, criação e edição (Fase 2)
+      acoes.ts           # Server actions de poço ("use server")
+      novo/page.tsx
+      [id]/editar/page.tsx
+      page.tsx
+  components/
+    pocos/               # Componentes de tela específicos de poço
+  hooks/
+    usar-rascunho-formulario.ts  # Autosave de formulário em localStorage
   lib/
-    prisma.ts          # Cliente Prisma singleton (com driver adapter)
-  generated/prisma/     # Código gerado pelo Prisma — NUNCA editar à mão
+    prisma.ts            # Cliente Prisma singleton (com driver adapter)
+    usuario-atual.ts      # Placeholder até existir autenticação (ver seção abaixo)
+  generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
 prisma/
   schema.prisma          # Schema do banco (entidades da Fase 1)
   seed.ts                # Seed de desenvolvimento (cliente, obra, 2 poços completos)
@@ -117,9 +127,25 @@ prisma7.config.ts        # Configuração do Prisma CLI (datasource, migrations,
 plano-sistema-relatorios-pocos.md  # Plano de produto e modelo de dados
 ```
 
-`src/components/` e `src/types/` serão criados nas próximas fases, junto com
-o código que de fato os ocupa — pastas vazias sem conteúdo não entram no
-repositório.
+Novas pastas (`src/components/`, `src/hooks/`, etc.) só entram no
+repositório junto com o código que de fato as ocupa — nunca vazias.
+
+### Placeholder: autenticação ainda não existe
+
+Todo registro exige `criado_por_id`, mas a Fase de autenticação ainda não foi
+implementada. Por isso `src/lib/usuario-atual.ts` retorna o primeiro usuário
+`admin` do banco como "usuário atual" para toda escrita. Substituir pela
+sessão autenticada assim que o login existir — não espalhar mais chamadas a
+esse placeholder do que o necessário, para facilitar essa troca depois.
+
+### Rascunho de formulário (autosave)
+
+O requisito de "salvar rascunho a cada campo alterado" está implementado via
+`useRascunhoFormulario` (localStorage, com debounce), não via banco de
+dados: os campos obrigatórios do poço não aceitam nulo, então um poço
+parcialmente preenchido não pode ser persistido antes de todas as etapas
+existirem. Isso é uma solução temporária — a Fase 5 (offline com IndexedDB)
+deve revisitar esse mecanismo.
 
 ## Fases do projeto
 

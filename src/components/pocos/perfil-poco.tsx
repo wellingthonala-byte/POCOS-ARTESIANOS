@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  gerarSvgPerfilLitologico,
-  type CamadaPerfil,
-} from "@/lib/perfil/litologico";
+import { gerarSvgPerfilPoco } from "@/lib/perfil/perfil";
+import type { CamadaPerfil } from "@/lib/perfil/litologico";
+import type { DadosConstrutivo } from "@/lib/perfil/construtivo";
 
 const ALTURA_ALVO_PADRAO = 700;
 const PIXELS_POR_METRO_MINIMO = 1;
@@ -21,9 +20,11 @@ function calcularEscalaAutomatica(profundidadeTotal: number): number {
 
 export function PerfilPoco({
   camadas,
+  construtivo,
   profundidadeTotal,
 }: {
   camadas: CamadaPerfil[];
+  construtivo: DadosConstrutivo;
   profundidadeTotal: number;
 }) {
   const escalaAutomatica = useMemo(
@@ -34,11 +35,13 @@ export function PerfilPoco({
 
   const svg = useMemo(
     () =>
-      gerarSvgPerfilLitologico(camadas, {
+      gerarSvgPerfilPoco({
+        camadas,
+        construtivo,
         profundidadeTotal,
         pixelsPorMetro,
       }),
-    [camadas, profundidadeTotal, pixelsPorMetro]
+    [camadas, construtivo, profundidadeTotal, pixelsPorMetro]
   );
 
   return (

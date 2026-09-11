@@ -21,6 +21,23 @@ export default async function DetalheDoPoco({
         where: { excluidoEm: null },
         orderBy: { ordem: "asc" },
       },
+      revestimentos: {
+        where: { excluidoEm: null },
+        orderBy: { ordem: "asc" },
+      },
+      cimentacoes: {
+        where: { excluidoEm: null },
+        orderBy: { ordem: "asc" },
+      },
+      preFiltros: {
+        where: { excluidoEm: null },
+        orderBy: { ordem: "asc" },
+      },
+      testesVazao: {
+        where: { excluidoEm: null },
+        orderBy: { criadoEm: "asc" },
+        take: 1,
+      },
     },
   });
 
@@ -40,6 +57,34 @@ export default async function DetalheDoPoco({
     poco.profundidadeFinal?.toNumber() ??
     (camadas.length > 0 ? camadas[camadas.length - 1].profundidadeFinal : 0);
 
+  const construtivo = {
+    revestimentos: poco.revestimentos.map((r) => ({
+      id: r.id,
+      profundidadeInicial: r.profundidadeInicial.toNumber(),
+      profundidadeFinal: r.profundidadeFinal.toNumber(),
+      tipo: r.tipo,
+      diametro: r.diametro,
+    })),
+    cimentacoes: poco.cimentacoes.map((c) => ({
+      id: c.id,
+      profundidadeInicial: c.profundidadeInicial.toNumber(),
+      profundidadeFinal: c.profundidadeFinal.toNumber(),
+    })),
+    preFiltros: poco.preFiltros.map((p) => ({
+      id: p.id,
+      profundidadeInicial: p.profundidadeInicial.toNumber(),
+      profundidadeFinal: p.profundidadeFinal.toNumber(),
+    })),
+    nivelEstatico: poco.testesVazao[0]?.nivelEstatico?.toNumber() ?? null,
+    nivelDinamico: poco.testesVazao[0]?.nivelDinamicoEstabilizado?.toNumber() ?? null,
+  };
+
+  const temPerfil =
+    camadas.length > 0 ||
+    construtivo.revestimentos.length > 0 ||
+    construtivo.cimentacoes.length > 0 ||
+    construtivo.preFiltros.length > 0;
+
   return (
     <main className="mx-auto max-w-2xl p-4 pb-24">
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -56,10 +101,14 @@ export default async function DetalheDoPoco({
 
       <NavegacaoEtapas pocoId={poco.id} etapaAtual="" />
 
-      {camadas.length > 0 && (
+      {temPerfil && (
         <div className="mt-6">
-          <h2 className="mb-2 font-medium">Perfil litológico</h2>
-          <PerfilPoco camadas={camadas} profundidadeTotal={profundidadeTotal} />
+          <h2 className="mb-2 font-medium">Perfil do poço</h2>
+          <PerfilPoco
+            camadas={camadas}
+            construtivo={construtivo}
+            profundidadeTotal={profundidadeTotal}
+          />
         </div>
       )}
 

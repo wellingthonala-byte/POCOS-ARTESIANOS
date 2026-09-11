@@ -146,8 +146,11 @@ src/
       excel.ts             # Workbook com as 5 abas via exceljs
       nome-arquivo.ts       # relatorio-poco-{identificacao}-{data}.{pdf,xlsx}
     perfil/                 # Desenho do perfil do poço (Fase 4)
-      escala.ts             # Profundidade (m) → posição vertical (px), com régua
-      litologico.ts         # Classifica a litologia e gera o SVG da coluna esquerda
+      escala.ts             # Profundidade (m) → posição vertical (px), escala unificada + régua
+      litologico.ts         # Classifica a litologia e gera o markup da coluna litológica
+      construtivo.ts        # Gera o markup da coluna construtiva (furo, revestimento,
+                             # cimentação, pré-filtro, níveis)
+      perfil.ts             # Orquestra as duas colunas + régua num único SVG (`gerarSvgPerfilPoco`)
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
 prisma/
   schema.prisma          # Schema do banco (entidades da Fase 1)
@@ -221,14 +224,44 @@ quando o poço já tiver um teste simples lançado por aqui.
 
 ### Perfil do poço (desenho) — decisões da Fase 4
 
-- **Sem JSX/React, pelo mesmo motivo do relatório**: `litologico.ts` gera o
-  SVG como string (não é um componente React), para poder ser reaproveitado
-  depois no PDF sem esbarrar na mesma restrição do Next.js contra
-  `react-dom/server` em Route Handlers. `PerfilPoco` (componente cliente) só
-  chama essa função e injeta o resultado via `dangerouslySetInnerHTML` — é
-  esse wrapper que efetivamente "renderiza na tela"; o servidor (quando o
-  desenho for embutido no PDF, na próxima etapa) vai chamar a mesma função
-  `gerarSvgPerfilLitologico` diretamente.
+- **Sem JSX/React, pelo mesmo motivo do relatório**: todo o desenho (colunas
+  litológica e construtiva, `perfil.ts`) é gerado como string (não é
+  componente React), para poder ser reaproveitado depois no PDF sem esbarrar
+  na mesma restrição do Next.js contra `react-dom/server` em Route Handlers.
+  `PerfilPoco` (componente cliente) só chama `gerarSvgPerfilPoco` e injeta o
+  resultado via `dangerouslySetInnerHTML` — é esse wrapper que efetivamente
+  "renderiza na tela"; o servidor (quando o desenho for embutido no PDF) vai
+  chamar a mesma função diretamente.
+- **Escala compartilhada entre as duas colunas ("escala elástica unificada")**:
+  litologia e perfil construtivo são listas de trechos lançadas de forma
+  independente (uma camada não tem por que coincidir com um trecho de
+  revestimento), mas as duas colunas precisam bater com a mesma régua. A
+  escala em `escala.ts` é construída a partir da UNIÃO de todos os limites de
+  profundidade (camadas + revestimentos + cimentações + pré-filtros) via
+  `coletarLimites`/`construirEscala` — não da lista de uma coluna isolada.
+  Por isso `gerarMarkupColunaLitologica`/`gerarMarkupColunaConstrutiva` nunca
+  indexam `segmentos[i]` supondo correspondência posicional com sua própria
+  lista de trechos: cada trecho busca seu y0/y1 via `profundidadeParaY`,
+  interpolando dentro do segmento unificado que o contém. `construirSegmentos`
+  continua existindo só para uso isolado de uma única coluna (ex.:
+  `gerarSvgPerfilLitologico` sozinho, sem construtivo).
+- **Coluna construtiva — largura do furo por diâmetro**: `diametro` do
+  revestimento é string livre (`6"`, `8 5/8"`, nunca convertida no banco,
+  ver Convenções de código); `analisarDiametroPolegadas` faz o parse só para
+  calcular a largura do desenho (nunca persiste de volta). O furo é desenhado
+  com uma margem fixa (`MARGEM_ANULAR_POLEGADAS`) sobre o diâmetro do
+  revestimento em cada trecho; abaixo do último revestimento lançado, o furo
+  continua em trecho aberto (sem tubo, sem margem) — o caso comum de poço em
+  rocha cristalina que não reveste até o fundo. Sem nenhum revestimento
+  lançado ainda, usa um diâmetro padrão só para não desenhar um furo de
+  largura zero.
+- **Cimentação/pré-filtro ficam no espaço anular ao redor do revestimento**:
+  como essas listas são lançadas de forma independente e podem não ter os
+  mesmos limites de profundidade do revestimento, `buscarRevestimentoParaAnular`
+  usa o trecho de revestimento que contém a profundidade de referência ou,
+  na falta de um exato, o mais próximo por distância — só para saber a
+  largura do "tubo" ali e desenhar a faixa anular (esquerda + direita) com a
+  largura certa.
 - **Classificação da litologia por palavra-chave**: `descricao` é texto
   livre (sem campo de "tipo" estruturado no schema), então a hachura
   (areia/argila/rocha/cascalho/outro) é escolhida por regex sobre o texto.

@@ -46,3 +46,29 @@ export function envolverAcaoComFilaOffline<E extends EstadoComPendente>(
     }
   };
 }
+
+type EstadoComErro = { erro?: string; sucesso?: boolean };
+
+/**
+ * Para telas sem fila de sincronização ainda (ex.: análise físico-química
+ * — ver `pocos/acoes.ts`): não guarda a tentativa pra sincronizar depois,
+ * só evita que uma falha de rede quebre a tela com "Application error".
+ * Se um dia essa tela precisar de suporte offline de verdade, troque por
+ * `envolverAcaoComFilaOffline`.
+ */
+export function envolverAcaoSemFila<E extends EstadoComErro>(
+  acao: (estado: E, formData: FormData) => Promise<E>
+): (estado: E, formData: FormData) => Promise<E> {
+  return async (estadoAnterior, formData) => {
+    try {
+      return await acao(estadoAnterior, formData);
+    } catch (erro) {
+      if (!ehErroDeRede(erro)) throw erro;
+      return {
+        ...estadoAnterior,
+        erro: "Sem conexão. Esta tela ainda não guarda alterações offline — tente novamente quando a internet voltar.",
+        sucesso: false,
+      };
+    }
+  };
+}

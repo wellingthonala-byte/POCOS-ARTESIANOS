@@ -105,6 +105,16 @@ export default async function DetalheDoPoco({
       </div>
 
       <div className="mt-6 flex flex-col gap-3 rounded-lg border border-gray-200 p-4">
+        <h2 className="font-medium">Análise de água</h2>
+        <a
+          href={`/pocos/${poco.id}/analises`}
+          className="flex min-h-11 items-center justify-center rounded-md bg-gray-100 px-4 text-base font-semibold text-gray-700 active:bg-gray-200"
+        >
+          Abrir análises de água
+        </a>
+      </div>
+
+      <div className="mt-6 flex flex-col gap-3 rounded-lg border border-gray-200 p-4">
         <h2 className="font-medium">Relatório</h2>
         <a
           href={`/pocos/${poco.id}/relatorio/pdf`}

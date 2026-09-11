@@ -123,6 +123,9 @@ src/
         construtivo/page.tsx    # Etapa 4 (revestimento, cimentação, pré-filtro)
         niveis-vazao/page.tsx   # Etapa 5 (resumo simples do teste de vazão)
         teste-vazao/page.tsx    # Teste de vazão completo — leituras, cronômetro, gráficos (Fase 6)
+        analises/
+          page.tsx              # Lista análises de água do poço + criar nova (Fase 6)
+          [analiseId]/page.tsx  # Editar análise + lançar/remover parâmetros
         relatorio/
           pdf/route.ts          # GET → PDF do relatório (Fase 3)
           excel/route.ts        # GET → planilha Excel do relatório (Fase 3)
@@ -143,6 +146,9 @@ src/
       perfil-poco.tsx       # Componente cliente: desenho do perfil + controle de escala
       teste-vazao-completo.tsx  # Config do teste, leituras, gráficos (Fase 6)
       cronometro.tsx             # Cronômetro pra cronometrar leitura em campo
+      formulario-nova-analise.tsx  # Cria análise de água (Fase 6)
+      formulario-analise.tsx        # Edita/exclui uma análise de água
+      lista-parametros.tsx           # Adiciona/remove parâmetro, destaca fora do VMP
     pwa/                  # Fase 5
       registrar-service-worker.tsx  # Só o efeito de registrar o service worker
       indicador-conectividade.tsx    # Indicador permanente online/offline no cabeçalho
@@ -178,10 +184,11 @@ src/
       banco-local.ts         # Espelho em IndexedDB dos poços já abertos com internet
       fila-sincronizacao.ts  # Fila de gravações que falharam por falta de rede
       envolver-acao.ts        # Wrapper genérico "tenta a action; se falhar por rede, enfileira"
+                             # (ou mostra erro sem guardar, ver envolverAcaoSemFila — Fase 6)
       registro-acoes.ts      # Mapa tipo → server action, usado por enfileirar/sincronizar
+      sincronizar.ts         # Reaplica a fila quando a conexão volta
     graficos/
       grafico-linha.ts        # Gráfico de linha em SVG (string, sem lib) — Fase 6
-      sincronizar.ts         # Reaplica a fila quando a conexão volta
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
 public/
   manifest.json           # Manifest da PWA (Fase 5)
@@ -578,6 +585,50 @@ sincronização ficam para as próximas etapas.
   tipo pra escalonado e lançando leituras depois dos 360min existentes, os
   dois gráficos (incluindo a curva vazão×rebaixamento subindo nos estágios
   novos) renderizaram corretamente.
+
+### Análise físico-química — decisões da Fase 6, etapa 2
+
+- **Parâmetro não é lista encadeada**: ao contrário de litologia/
+  construtivo/leituras do teste de vazão (cada trecho novo começa onde o
+  anterior parou), um laudo de laboratório lista vários parâmetros de uma
+  vez, sem ordem entre eles. `adicionarParametro`/`removerParametro`
+  (`pocos/acoes.ts`) não reaproveitam `useListaTrechos`: cada parâmetro é
+  independente, removido pelo próprio id — qualquer um da lista, não só o
+  último —, então cada linha em `lista-parametros.tsx` tem sua própria
+  action ligada (`removerParametro.bind(null, parametro.id, pocoId,
+  analiseId)`), não uma única compartilhada pela lista inteira.
+- **De propósito SEM fila de sincronização offline**: dado de laudo
+  normalmente chega bem depois da coleta, já com internet — diferente de
+  litologia/perfuração/teste de vazão, lançados na hora, na obra. Também
+  pesou que o registro da fila (`registro-acoes.ts`) hoje pressupõe uma
+  action com um único `pocoId` como primeiro parâmetro, e aqui há action
+  com dois/três ids amarrados (analiseId+pocoId, ou
+  parametroId+pocoId+analiseId) — generalizar isso não compensava pra um
+  fluxo com baixa chance real de acontecer sem sinal. Mesmo assim, uma
+  gravação sem rede não pode quebrar a tela: `envolverAcaoSemFila`
+  (`envolver-acao.ts`, novo) mostra um erro claro em vez de estourar
+  "Application error", só sem guardar a tentativa pra sincronizar depois —
+  se esse fluxo precisar de suporte offline de verdade algum dia, trocar
+  por `envolverAcaoComFilaOffline`.
+- **"Fora do padrão" é comparação simples client-side com o VMP daquele
+  próprio parâmetro** (`valor < vmpMinimo` ou `valor > vmpMaximo`), feita
+  em JS depois de buscar tudo — não em SQL: Prisma não compara duas
+  colunas da mesma linha (`valor` vs `vmpMinimo`) direto num `where`, e o
+  volume por análise (poucos parâmetros) não justifica SQL bruto só por
+  isso. Cada laudo já traz o VMP junto do valor medido, então o campo é
+  digitado manualmente (não há uma tabela de VMP por norma embutida no
+  sistema) — `vmpMinimo`/`vmpMaximo` são ambos opcionais porque nem todo
+  parâmetro tem os dois limites (ex.: coliformes só tem máximo).
+- **Excluir análise usa `confirm()` nativo do navegador**, não um modal
+  próprio — é a primeira ação destrutiva do sistema com essa exposição
+  direta (cliente/obra/poço ainda não têm exclusão pela interface); dado o
+  baixo volume de uso, não justificou construir um componente de
+  confirmação só para isso ainda.
+- **Testado com os dados do seed** (análise de PT-01 com 6 parâmetros,
+  todos dentro do VMP) e lançando um parâmetro de teste fora da faixa
+  (Ferro total 0,55 mg/L com VMP máximo 0,30) — o destaque vermelho e o
+  selo "Fora do padrão" apareceram só nesse parâmetro, os demais
+  continuaram normais.
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

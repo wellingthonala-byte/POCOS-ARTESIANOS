@@ -887,3 +887,182 @@ export async function removerUltimaLeituraTeste(
   revalidatePath(`/pocos/${pocoId}/teste-vazao`);
   return { sucesso: true };
 }
+
+// ---------------------------------------------------------------------------
+// Análise físico-química da água (Fase 6, etapa 2). Diferente das listas de
+// trecho (litologia, construtivo, leituras do teste de vazão), parâmetros
+// não têm ordem/encadeamento — um laudo de laboratório lista vários
+// parâmetros de uma vez, sem relação de "onde o anterior parou". Por isso
+// adicionar/remover aqui não reaproveita useListaTrechos: cada parâmetro é
+// independente, removido pelo próprio id, não "o último".
+//
+// De propósito SEM fila de sincronização offline: dado de laudo de
+// laboratório normalmente é lançado bem depois da coleta, já com internet
+// (ao contrário de litologia/perfuração/teste de vazão, lançados na hora,
+// no local da obra) — o ganho não compensa generalizar o registro da fila
+// (hoje todo pensado pra actions com um único `pocoId` como primeiro
+// parâmetro; aqui há action com dois/três ids amarrados). Ainda assim, uma
+// gravação sem rede não pode quebrar a tela — `envolverAcaoSemFila`
+// (`envolver-acao.ts`) mostra um erro claro em vez de estourar
+// "Application error", só sem guardar a tentativa pra sincronizar depois.
+// ---------------------------------------------------------------------------
+
+export type EstadoAnalise = {
+  erro?: string;
+  sucesso?: boolean;
+  analiseId?: string;
+};
+
+function tratarErroAnalise(erro: unknown): EstadoAnalise {
+  return { erro: erro instanceof Error ? erro.message : "Erro ao salvar." };
+}
+
+function lerData(formData: FormData, campo: string, rotulo: string): Date {
+  const texto = String(formData.get(campo) ?? "").trim();
+  if (!texto) throw new Error(`Informe ${rotulo}.`);
+  return new Date(texto);
+}
+
+export async function criarAnalise(
+  pocoId: string,
+  _estadoAnterior: EstadoAnalise,
+  formData: FormData
+): Promise<EstadoAnalise> {
+  try {
+    const dataColeta = lerData(formData, "dataColeta", "a data da coleta");
+    const laboratorio = String(formData.get("laboratorio") ?? "").trim();
+    const criadoPorId = await obterUsuarioAtualId();
+
+    const analise = await prisma.analiseAgua.create({
+      data: { pocoId, dataColeta, laboratorio: laboratorio || null, criadoPorId },
+    });
+
+    revalidatePath(`/pocos/${pocoId}/analises`);
+    return { sucesso: true, analiseId: analise.id };
+  } catch (erro) {
+    return tratarErroAnalise(erro);
+  }
+}
+
+export async function atualizarAnalise(
+  analiseId: string,
+  pocoId: string,
+  _estadoAnterior: EstadoAnalise,
+  formData: FormData
+): Promise<EstadoAnalise> {
+  try {
+    const dataColeta = lerData(formData, "dataColeta", "a data da coleta");
+    const laboratorio = String(formData.get("laboratorio") ?? "").trim();
+
+    await prisma.analiseAgua.update({
+      where: { id: analiseId },
+      data: { dataColeta, laboratorio: laboratorio || null },
+    });
+  } catch (erro) {
+    return tratarErroAnalise(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/analises/${analiseId}`);
+  return { sucesso: true };
+}
+
+export async function excluirAnalise(
+  analiseId: string,
+  pocoId: string,
+  _estadoAnterior: EstadoAnalise,
+  _formData: FormData
+): Promise<EstadoAnalise> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    await prisma.analiseAgua.update({
+      where: { id: analiseId },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return tratarErroAnalise(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/analises`);
+  return { sucesso: true };
+}
+
+function lerNumeroObrigatorioAnalise(
+  formData: FormData,
+  campo: string,
+  rotulo: string
+): number {
+  const texto = String(formData.get(campo) ?? "").trim().replace(",", ".");
+  const valor = Number(texto);
+  if (!texto || Number.isNaN(valor)) throw new Error(`Informe ${rotulo}.`);
+  return valor;
+}
+
+function lerNumeroOpcionalAnalise(formData: FormData, campo: string): number | null {
+  const texto = String(formData.get(campo) ?? "").trim().replace(",", ".");
+  if (!texto) return null;
+  const valor = Number(texto);
+  if (Number.isNaN(valor)) throw new Error(`Valor inválido em "${campo}".`);
+  return valor;
+}
+
+export async function adicionarParametro(
+  analiseId: string,
+  pocoId: string,
+  _estadoAnterior: EstadoAnalise,
+  formData: FormData
+): Promise<EstadoAnalise> {
+  try {
+    const nome = String(formData.get("nome") ?? "").trim();
+    if (!nome) throw new Error("Informe o nome do parâmetro.");
+    const unidade = String(formData.get("unidade") ?? "").trim();
+    if (!unidade) throw new Error("Informe a unidade do parâmetro.");
+
+    const valor = lerNumeroObrigatorioAnalise(formData, "valor", "o valor medido");
+    const vmpMinimo = lerNumeroOpcionalAnalise(formData, "vmpMinimo");
+    const vmpMaximo = lerNumeroOpcionalAnalise(formData, "vmpMaximo");
+    if (vmpMinimo !== null && vmpMaximo !== null && vmpMinimo > vmpMaximo) {
+      throw new Error("O VMP mínimo não pode ser maior que o VMP máximo.");
+    }
+
+    const criadoPorId = await obterUsuarioAtualId();
+    await prisma.parametro.create({
+      data: {
+        analiseAguaId: analiseId,
+        nome,
+        valor,
+        unidade,
+        vmpMinimo,
+        vmpMaximo,
+        criadoPorId,
+      },
+    });
+  } catch (erro) {
+    return tratarErroAnalise(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/analises/${analiseId}`);
+  return { sucesso: true };
+}
+
+export async function removerParametro(
+  parametroId: string,
+  pocoId: string,
+  analiseId: string,
+  _estadoAnterior: EstadoAnalise,
+  _formData: FormData
+): Promise<EstadoAnalise> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    await prisma.parametro.update({
+      where: { id: parametroId },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return tratarErroAnalise(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/analises/${analiseId}`);
+  return { sucesso: true };
+}

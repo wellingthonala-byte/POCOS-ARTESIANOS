@@ -1,7 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Schema do Sistema de Relatórios de Poços.
+// Ver plano-sistema-relatorios-pocos.md (seção 4) e CLAUDE.md para o
+// vocabulário do domínio e as regras de modelagem.
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +9,449 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Papel {
+  admin
+  tecnico_campo
+  responsavel_tecnico
+}
+
+enum MetodoObtencaoCoordenada {
+  gps_celular
+  gps_geodesico
+  manual
+}
+
+enum TipoPessoa {
+  fisica
+  juridica
+}
+
+enum StatusPoco {
+  planejado
+  em_perfuracao
+  concluido
+  cancelado
+}
+
+enum MetodoPerfuracao {
+  rotativo
+  rotopneumatico
+  percussao
+  misto
+}
+
+enum TipoRevestimento {
+  liso
+  filtro
+}
+
+enum MetodoDesenvolvimento {
+  pistoneamento
+  ar_comprimido
+  bombeamento
+  jateamento
+  outro
+}
+
+enum TipoTesteVazao {
+  escalonado
+  continuo
+  recuperacao
+}
+
+enum TipoAnexo {
+  foto
+  art
+  croqui
+  laudo
+  outro
+}
+
+// ---------------------------------------------------------------------------
+// Usuário
+// ---------------------------------------------------------------------------
+
+model Usuario {
+  id        String  @id @default(cuid())
+  nome      String
+  email     String  @unique
+  senhaHash String  @map("senha_hash")
+  papel     Papel
+  crea      String? // registro profissional, preenchido para responsavel_tecnico
+  telefone  String?
+  ativo     Boolean @default(true)
+
+  criadoPorId String?  @map("criado_por_id")
+  criadoPor   Usuario? @relation("UsuarioCriadoPor", fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  usuariosCriados           Usuario[]          @relation("UsuarioCriadoPor")
+  clientesCriados           Cliente[]
+  obrasCriadas              Obra[]
+  pocosCriados              Poco[]
+  camadasLitologicasCriadas CamadaLitologica[]
+  revestimentosCriados      Revestimento[]
+  cimentacoesCriadas        Cimentacao[]
+  preFiltrosCriados         PreFiltro[]
+  desenvolvimentosCriados   Desenvolvimento[]
+  testesVazaoCriados        TesteVazao[]
+  testesLeituraCriados      TesteLeitura[]
+  analisesAguaCriadas       AnaliseAgua[]
+  parametrosCriados         Parametro[]
+  anexosCriados             Anexo[]
+
+  @@map("usuario")
+}
+
+// ---------------------------------------------------------------------------
+// Cliente / Obra
+// ---------------------------------------------------------------------------
+
+model Cliente {
+  id         String     @id @default(cuid())
+  nome       String
+  tipoPessoa TipoPessoa @map("tipo_pessoa")
+  documento  String // CPF ou CNPJ
+  telefone   String?
+  email      String?
+  endereco   String?
+  municipio  String?
+  uf         String?
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  obras Obra[]
+
+  @@map("cliente")
+}
+
+model Obra {
+  id        String  @id @default(cuid())
+  clienteId String  @map("cliente_id")
+  nome      String
+  endereco  String?
+  municipio String
+  uf        String
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  pocos Poco[]
+
+  @@map("obra")
+}
+
+// ---------------------------------------------------------------------------
+// Poço
+// ---------------------------------------------------------------------------
+
+model Poco {
+  id            String     @id @default(cuid())
+  obraId        String     @map("obra_id")
+  identificacao String // ex.: "PT-01"
+  status        StatusPoco @default(planejado)
+
+  // Locação
+  latitude                 Decimal                  @db.Decimal(10, 7)
+  longitude                Decimal                  @db.Decimal(10, 7)
+  metodoObtencaoCoordenada MetodoObtencaoCoordenada @map("metodo_obtencao_coordenada")
+  municipio                String?
+  uf                       String?
+
+  // Perfuração
+  metodoPerfuracao     MetodoPerfuracao? @map("metodo_perfuracao")
+  dataInicioPerfuracao DateTime?         @map("data_inicio_perfuracao")
+  dataFimPerfuracao    DateTime?         @map("data_fim_perfuracao")
+  profundidadeFinal    Decimal?          @map("profundidade_final") @db.Decimal(6, 2)
+
+  // Responsabilidade técnica (para o relatório final)
+  numeroArt String? @map("numero_art")
+
+  obra Obra @relation(fields: [obraId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  camadasLitologicas CamadaLitologica[]
+  revestimentos      Revestimento[]
+  cimentacoes        Cimentacao[]
+  preFiltros         PreFiltro[]
+  desenvolvimentos   Desenvolvimento[]
+  testesVazao        TesteVazao[]
+  analisesAgua       AnaliseAgua[]
+  anexos             Anexo[]
+
+  @@unique([obraId, identificacao])
+  @@map("poco")
+}
+
+// ---------------------------------------------------------------------------
+// Perfil litológico e perfil construtivo (listas ordenadas por profundidade)
+// ---------------------------------------------------------------------------
+
+model CamadaLitologica {
+  id                  String  @id @default(cuid())
+  pocoId              String  @map("poco_id")
+  ordem               Int
+  profundidadeInicial Decimal @map("profundidade_inicial") @db.Decimal(6, 2)
+  profundidadeFinal   Decimal @map("profundidade_final") @db.Decimal(6, 2)
+  descricao           String // ex.: "areia fina", "argila siltosa", "granito alterado"
+
+  poco Poco @relation(fields: [pocoId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  @@unique([pocoId, ordem])
+  @@map("camada_litologica")
+}
+
+model Revestimento {
+  id                  String           @id @default(cuid())
+  pocoId              String           @map("poco_id")
+  ordem               Int
+  profundidadeInicial Decimal          @map("profundidade_inicial") @db.Decimal(6, 2)
+  profundidadeFinal   Decimal          @map("profundidade_final") @db.Decimal(6, 2)
+  tipo                TipoRevestimento
+  material            String? // ex.: PVC, aço carbono
+  diametro            String // polegadas, ex.: 6", 8 5/8" — nunca converter
+
+  poco Poco @relation(fields: [pocoId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  @@unique([pocoId, ordem])
+  @@map("revestimento")
+}
+
+model Cimentacao {
+  id                  String  @id @default(cuid())
+  pocoId              String  @map("poco_id")
+  ordem               Int
+  profundidadeInicial Decimal @map("profundidade_inicial") @db.Decimal(6, 2)
+  profundidadeFinal   Decimal @map("profundidade_final") @db.Decimal(6, 2)
+
+  poco Poco @relation(fields: [pocoId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  @@unique([pocoId, ordem])
+  @@map("cimentacao")
+}
+
+model PreFiltro {
+  id                  String  @id @default(cuid())
+  pocoId              String  @map("poco_id")
+  ordem               Int
+  profundidadeInicial Decimal @map("profundidade_inicial") @db.Decimal(6, 2)
+  profundidadeFinal   Decimal @map("profundidade_final") @db.Decimal(6, 2)
+  granulometria       String? // ex.: "1-2mm"
+
+  poco Poco @relation(fields: [pocoId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  @@unique([pocoId, ordem])
+  @@map("pre_filtro")
+}
+
+// ---------------------------------------------------------------------------
+// Desenvolvimento do poço
+// ---------------------------------------------------------------------------
+
+model Desenvolvimento {
+  id           String                @id @default(cuid())
+  pocoId       String                @map("poco_id")
+  metodo       MetodoDesenvolvimento
+  dataInicio   DateTime?             @map("data_inicio")
+  dataFim      DateTime?             @map("data_fim")
+  duracaoHoras Decimal?              @map("duracao_horas") @db.Decimal(6, 2)
+  observacoes  String?
+
+  poco Poco @relation(fields: [pocoId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  @@map("desenvolvimento")
+}
+
+// ---------------------------------------------------------------------------
+// Teste de vazão
+// ---------------------------------------------------------------------------
+
+model TesteVazao {
+  id                String         @id @default(cuid())
+  pocoId            String         @map("poco_id")
+  tipo              TipoTesteVazao
+  dataHoraInicio    DateTime       @map("data_hora_inicio")
+  nivelEstatico     Decimal        @map("nivel_estatico") @db.Decimal(6, 2)
+  vazaoEstabilizada Decimal?       @map("vazao_estabilizada") @db.Decimal(8, 3)
+  observacoes       String?
+
+  poco Poco @relation(fields: [pocoId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  leituras TesteLeitura[]
+
+  @@map("teste_vazao")
+}
+
+model TesteLeitura {
+  id            String   @id @default(cuid())
+  testeVazaoId  String   @map("teste_vazao_id")
+  tempoMinutos  Decimal  @map("tempo_minutos") @db.Decimal(7, 2)
+  nivelDinamico Decimal  @map("nivel_dinamico") @db.Decimal(6, 2)
+  vazao         Decimal? @db.Decimal(8, 3) // obrigatório para o escalonado (varia por estágio)
+
+  testeVazao TesteVazao @relation(fields: [testeVazaoId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  @@map("teste_leitura")
+}
+
+// ---------------------------------------------------------------------------
+// Análise físico-química da água
+// ---------------------------------------------------------------------------
+
+model AnaliseAgua {
+  id          String   @id @default(cuid())
+  pocoId      String   @map("poco_id")
+  dataColeta  DateTime @map("data_coleta")
+  laboratorio String?
+
+  poco Poco @relation(fields: [pocoId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  parametros Parametro[]
+  anexos     Anexo[]
+
+  @@map("analise_agua")
+}
+
+model Parametro {
+  id            String   @id @default(cuid())
+  analiseAguaId String   @map("analise_agua_id")
+  nome          String // ex.: "pH", "Ferro total", "Coliformes totais"
+  valor         Decimal  @db.Decimal(10, 4)
+  unidade       String // ex.: "mg/L", "NMP/100mL"
+  vmpMinimo     Decimal? @map("vmp_minimo") @db.Decimal(10, 4)
+  vmpMaximo     Decimal? @map("vmp_maximo") @db.Decimal(10, 4)
+
+  analiseAgua AnaliseAgua @relation(fields: [analiseAguaId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  @@map("parametro")
+}
+
+// ---------------------------------------------------------------------------
+// Anexos (fotos, ART, croqui, laudos)
+// ---------------------------------------------------------------------------
+
+model Anexo {
+  id                 String    @id @default(cuid())
+  pocoId             String    @map("poco_id")
+  analiseAguaId      String?   @map("analise_agua_id")
+  tipo               TipoAnexo
+  arquivoUrl         String    @map("arquivo_url")
+  nomeArquivo        String    @map("nome_arquivo")
+  legenda            String?
+  incluirNoRelatorio Boolean   @default(false) @map("incluir_no_relatorio")
+
+  poco        Poco         @relation(fields: [pocoId], references: [id])
+  analiseAgua AnaliseAgua? @relation(fields: [analiseAguaId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm     DateTime? @map("excluido_em")
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  @@map("anexo")
 }

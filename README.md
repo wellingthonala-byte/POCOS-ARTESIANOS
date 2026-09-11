@@ -28,3 +28,7 @@ Abra [http://localhost:3000](http://localhost:3000).
 - `npm run start` — sobe o build de produção
 - `npm run lint` — checagem de lint
 - `npx prisma generate` — gera o cliente Prisma a partir de `prisma/schema.prisma`
+- `npx prisma migrate dev` — aplica migrations pendentes (e roda o seed, se o
+  banco acabou de ser criado)
+- `npx prisma db seed` — popula o banco com 1 cliente, 1 obra e 2 poços de
+  exemplo (`prisma/seed.ts`)

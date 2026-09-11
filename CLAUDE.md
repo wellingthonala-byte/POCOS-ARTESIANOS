@@ -38,11 +38,20 @@ O plano original previa SQLite em desenvolvimento e PostgreSQL em produção.
 O Prisma 7 usa um compilador de consultas por banco (WASM) e adapters de
 conexão por provedor — um mesmo `schema.prisma` não troca de provedor entre
 ambientes sem duplicar schema/migrations. Por isso o projeto usa **PostgreSQL
-em todos os ambientes**: em desenvolvimento local, via `npx prisma dev`
-(Postgres local descartável, sem instalação) ou um Postgres via Docker. Se
-isso for um problema (ex.: exigência de trabalhar 100% offline até no
-desenvolvimento), converse com o time antes da Fase 1 — a alternativa exigiria
-manter dois schemas Prisma sincronizados manualmente.
+em todos os ambientes**. Em desenvolvimento local: instale o PostgreSQL 16 e
+crie um banco e um usuário para o projeto, por exemplo:
+
+```bash
+sudo service postgresql start
+sudo -u postgres psql -c "CREATE ROLE pocos LOGIN PASSWORD 'sua_senha' CREATEDB;"
+sudo -u postgres psql -c "CREATE DATABASE pocos_artesianos OWNER pocos;"
+```
+
+Depois configure `DATABASE_URL` no `.env` (veja `.env.example`) e rode
+`npx prisma migrate dev`. A opção `npx prisma dev` (Postgres local
+descartável, sem instalação) também funciona como alternativa. `CREATEDB` é
+necessário porque o Prisma Migrate cria um "shadow database" temporário para
+calcular o diff de cada migration.
 
 ## Convenções de código
 
@@ -101,8 +110,10 @@ src/
     prisma.ts          # Cliente Prisma singleton (com driver adapter)
   generated/prisma/     # Código gerado pelo Prisma — NUNCA editar à mão
 prisma/
-  schema.prisma         # Schema do banco (entidades entram na Fase 1)
-prisma7.config.ts        # Configuração do Prisma CLI (datasource, migrations)
+  schema.prisma          # Schema do banco (entidades da Fase 1)
+  seed.ts                # Seed de desenvolvimento (cliente, obra, 2 poços completos)
+  migrations/            # Histórico de migrations — nunca editar migration aplicada
+prisma7.config.ts        # Configuração do Prisma CLI (datasource, migrations, seed)
 plano-sistema-relatorios-pocos.md  # Plano de produto e modelo de dados
 ```
 

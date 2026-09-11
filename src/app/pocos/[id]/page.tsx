@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { NavegacaoEtapas } from "@/components/pocos/navegacao-etapas";
+import { PerfilPoco } from "@/components/pocos/perfil-poco";
 import { rotulosStatusPoco, coresStatusPoco } from "@/lib/rotulos";
 
 export const dynamic = "force-dynamic";
@@ -14,12 +15,30 @@ export default async function DetalheDoPoco({
 
   const poco = await prisma.poco.findFirst({
     where: { id, excluidoEm: null },
-    include: { obra: { include: { cliente: true } } },
+    include: {
+      obra: { include: { cliente: true } },
+      camadasLitologicas: {
+        where: { excluidoEm: null },
+        orderBy: { ordem: "asc" },
+      },
+    },
   });
 
   if (!poco) {
     notFound();
   }
+
+  const camadas = poco.camadasLitologicas.map((camada) => ({
+    id: camada.id,
+    ordem: camada.ordem,
+    profundidadeInicial: camada.profundidadeInicial.toNumber(),
+    profundidadeFinal: camada.profundidadeFinal.toNumber(),
+    descricao: camada.descricao,
+  }));
+
+  const profundidadeTotal =
+    poco.profundidadeFinal?.toNumber() ??
+    (camadas.length > 0 ? camadas[camadas.length - 1].profundidadeFinal : 0);
 
   return (
     <main className="mx-auto max-w-2xl p-4 pb-24">
@@ -36,6 +55,13 @@ export default async function DetalheDoPoco({
       </p>
 
       <NavegacaoEtapas pocoId={poco.id} etapaAtual="" />
+
+      {camadas.length > 0 && (
+        <div className="mt-6">
+          <h2 className="mb-2 font-medium">Perfil litológico</h2>
+          <PerfilPoco camadas={camadas} profundidadeTotal={profundidadeTotal} />
+        </div>
+      )}
 
       <div className="mt-6 flex flex-col gap-3 rounded-lg border border-gray-200 p-4">
         <h2 className="font-medium">Relatório</h2>

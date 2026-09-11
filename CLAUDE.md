@@ -113,7 +113,7 @@ src/
       acoes.ts           # Server actions de poço ("use server")
       novo/page.tsx      # Criação — etapa 1 (identificação e locação)
       [id]/
-        page.tsx                # Detalhe do poço + baixar relatório (Fase 3)
+        page.tsx                # Detalhe do poço + perfil litológico + baixar relatório
         identificacao/page.tsx  # Etapa 1 (editar poço existente)
         perfuracao/page.tsx     # Etapa 2
         litologia/page.tsx      # Etapa 3
@@ -129,6 +129,7 @@ src/
     configuracoes/
     pocos/               # Componentes de tela específicos de poço
       navegacao-etapas.tsx  # Barra de navegação entre as 5 etapas do poço
+      perfil-poco.tsx       # Componente cliente: desenho do perfil + controle de escala
   hooks/
     usar-rascunho-formulario.ts  # Autosave de formulário em localStorage
     usar-lista-trechos.ts        # Wiring comum às listas de trechos encadeados
@@ -137,12 +138,16 @@ src/
     usuario-atual.ts      # Placeholder até existir autenticação (ver seção abaixo)
     rotulos.ts            # Rótulos em português dos enums — única fonte, usada nas
                            # telas e nos relatórios
+    escapar-html.ts        # Escape manual de texto do usuário em HTML/SVG montado como string
     relatorio/
       dados.ts            # Busca tudo que o relatório precisa para um poço
       template.ts          # Monta o HTML do PDF (strings simples, ver nota abaixo)
       pdf.ts               # HTML → PDF via Puppeteer (cabeçalho/rodapé, Página X de Y)
       excel.ts             # Workbook com as 5 abas via exceljs
       nome-arquivo.ts       # relatorio-poco-{identificacao}-{data}.{pdf,xlsx}
+    perfil/                 # Desenho do perfil do poço (Fase 4)
+      escala.ts             # Profundidade (m) → posição vertical (px), com régua
+      litologico.ts         # Classifica a litologia e gera o SVG da coluna esquerda
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
 prisma/
   schema.prisma          # Schema do banco (entidades da Fase 1)
@@ -213,6 +218,33 @@ quando o poço já tiver um teste simples lançado por aqui.
   em container. Cada chamada de `gerarRelatorioPdf` sobe e derruba um
   Chromium — aceitável na escala de uma única empresa; se o volume crescer,
   vale manter um browser Puppeteer persistente em vez de um por requisição.
+
+### Perfil do poço (desenho) — decisões da Fase 4
+
+- **Sem JSX/React, pelo mesmo motivo do relatório**: `litologico.ts` gera o
+  SVG como string (não é um componente React), para poder ser reaproveitado
+  depois no PDF sem esbarrar na mesma restrição do Next.js contra
+  `react-dom/server` em Route Handlers. `PerfilPoco` (componente cliente) só
+  chama essa função e injeta o resultado via `dangerouslySetInnerHTML` — é
+  esse wrapper que efetivamente "renderiza na tela"; o servidor (quando o
+  desenho for embutido no PDF, na próxima etapa) vai chamar a mesma função
+  `gerarSvgPerfilLitologico` diretamente.
+- **Classificação da litologia por palavra-chave**: `descricao` é texto
+  livre (sem campo de "tipo" estruturado no schema), então a hachura
+  (areia/argila/rocha/cascalho/outro) é escolhida por regex sobre o texto.
+  É uma heurística, não uma classificação geológica exata — texto sem
+  correspondência cai em "outro" (preenchimento neutro, sem hachura).
+- **Escala com régua "elástica"**: camadas finas (< 1% da profundidade
+  total) ganham altura mínima em vez de sumir, e a régua de profundidade
+  usa a mesma função `profundidadeParaY` que posiciona as camadas — os
+  traços da régua continuam batendo com os limites das camadas mesmo
+  quando uma camada fina empurra a escala local.
+- **Quebra de texto dos rótulos é por contagem de caracteres, não medição
+  real**: não há canvas disponível nem no navegador nem no servidor para
+  medir a largura exata do texto. `MAX_CARACTERES_POR_LINHA` em
+  `litologico.ts` foi calibrado com folga para a fonte/tamanho usados — se
+  mudar a fonte do rótulo, reveja essa constante (um rótulo comprido
+  vazando para fora do SVG à esquerda é o sintoma).
 
 ## Fases do projeto
 

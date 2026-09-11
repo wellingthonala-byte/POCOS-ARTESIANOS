@@ -4,6 +4,7 @@ import {
   rotulosMetodoPerfuracao,
   rotulosTipoRevestimento,
 } from "@/lib/rotulos";
+import { escaparHtml } from "@/lib/escapar-html";
 
 // Next.js proíbe importar react-dom/server no grafo de módulos de um Route
 // Handler ("renderize como Server Component em vez disso"). Como este HTML
@@ -11,14 +12,6 @@ import {
 // template com strings simples — e por isso escapamos manualmente todo
 // valor que vem de texto digitado pelo usuário (descrição, material, nome
 // etc.), já que aqui não há o escape automático do JSX.
-function escaparHtml(valor: string): string {
-  return valor
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
 
 function formatarData(data: Date | null | undefined): string {
   if (!data) return "";

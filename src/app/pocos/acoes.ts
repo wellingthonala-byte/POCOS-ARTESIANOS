@@ -7,6 +7,7 @@ import {
   MetodoObtencaoCoordenada,
   MetodoPerfuracao,
   TipoRevestimento,
+  TipoTesteVazao,
 } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { obterUsuarioAtualId } from "@/lib/usuario-atual";
@@ -17,6 +18,12 @@ export type EstadoFormularioPoco = {
   pocoId?: string;
   conflito?: boolean;
   atualizadoEm?: string;
+  // Nunca setado pela action em si — só pelo wrapper de fila offline
+  // (envolverAcaoComFilaOffline) quando a gravação foi guardada localmente
+  // por falta de rede. Fica aqui, e não como um tipo local por tela, pra
+  // toda tela que use esse wrapper poder ler `estado.pendente` sem
+  // precisar de um tipo próprio.
+  pendente?: boolean;
 };
 
 function validarEnum<T extends string>(
@@ -737,4 +744,146 @@ export async function atualizarNiveisVazao(
   } catch (erro) {
     return tratarErro(erro);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Teste de vazão completo (Fase 6): tipo do ensaio e leituras ao longo do
+// tempo. Opera no MESMO registro teste_vazao que a etapa 5 do cadastro do
+// poço já cria (nível estático obrigatório) — por isso as duas ações
+// abaixo exigem que um teste já exista, orientando a lançar o nível
+// estático por lá primeiro em vez de duplicar esse campo aqui.
+// ---------------------------------------------------------------------------
+
+async function buscarTesteVazaoAtual(pocoId: string) {
+  return prisma.testeVazao.findFirst({
+    where: { pocoId, excluidoEm: null },
+    orderBy: { criadoEm: "asc" },
+  });
+}
+
+const MENSAGEM_SEM_TESTE =
+  'Lance ao menos o nível estático na etapa "Níveis e vazão" antes de configurar o teste completo.';
+
+export async function atualizarTipoEInicioTeste(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  formData: FormData
+): Promise<EstadoFormularioPoco> {
+  try {
+    const tipo = String(formData.get("tipo") ?? "");
+    const dataHoraInicio = String(formData.get("dataHoraInicio") ?? "").trim();
+    if (!dataHoraInicio) throw new Error("Informe a data/hora de início do teste.");
+
+    const testeAtual = await buscarTesteVazaoAtual(pocoId);
+    if (!testeAtual) throw new Error(MENSAGEM_SEM_TESTE);
+
+    await prisma.testeVazao.update({
+      where: { id: testeAtual.id },
+      data: {
+        tipo: validarEnum(Object.values(TipoTesteVazao), tipo, "Tipo de teste"),
+        dataHoraInicio: new Date(dataHoraInicio),
+      },
+    });
+  } catch (erro) {
+    return tratarErro(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/teste-vazao`);
+  return { sucesso: true };
+}
+
+function lerNumeroObrigatorio(
+  formData: FormData,
+  campo: string,
+  rotulo: string
+): number {
+  const texto = String(formData.get(campo) ?? "").trim().replace(",", ".");
+  const valor = Number(texto);
+  if (!texto || Number.isNaN(valor)) {
+    throw new Error(`Informe ${rotulo}.`);
+  }
+  return valor;
+}
+
+export async function adicionarLeituraTeste(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  formData: FormData
+): Promise<EstadoFormularioPoco> {
+  try {
+    const tempoMinutos = lerNumeroObrigatorio(formData, "tempoMinutos", "o tempo decorrido");
+    const nivelDinamico = lerNumeroObrigatorio(formData, "nivelDinamico", "o nível dinâmico");
+    if (tempoMinutos < 0) throw new Error("Tempo decorrido não pode ser negativo.");
+
+    const vazaoTexto = String(formData.get("vazao") ?? "").trim().replace(",", ".");
+    let vazao: number | null = null;
+    if (vazaoTexto) {
+      vazao = Number(vazaoTexto);
+      if (Number.isNaN(vazao) || vazao <= 0) throw new Error("Vazão inválida.");
+    }
+
+    const criadoPorId = await obterUsuarioAtualId();
+
+    await prisma.$transaction(async (tx) => {
+      const teste = await tx.testeVazao.findFirst({
+        where: { pocoId, excluidoEm: null },
+        orderBy: { criadoEm: "asc" },
+      });
+      if (!teste) throw new Error(MENSAGEM_SEM_TESTE);
+
+      if (nivelDinamico <= teste.nivelEstatico.toNumber()) {
+        throw new Error("O nível dinâmico deve ser maior que o nível estático.");
+      }
+      if (teste.tipo === "escalonado" && vazao === null) {
+        throw new Error("Informe a vazão do estágio — obrigatória no teste escalonado.");
+      }
+
+      const ultimaLeitura = await tx.testeLeitura.findFirst({
+        where: { testeVazaoId: teste.id, excluidoEm: null },
+        orderBy: { tempoMinutos: "desc" },
+      });
+      if (ultimaLeitura && tempoMinutos <= ultimaLeitura.tempoMinutos.toNumber()) {
+        throw new Error("O tempo decorrido deve ser maior que o da última leitura.");
+      }
+
+      await tx.testeLeitura.create({
+        data: { testeVazaoId: teste.id, tempoMinutos, nivelDinamico, vazao, criadoPorId },
+      });
+    });
+  } catch (erro) {
+    return tratarErro(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/teste-vazao`);
+  return { sucesso: true };
+}
+
+export async function removerUltimaLeituraTeste(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  _formData: FormData
+): Promise<EstadoFormularioPoco> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    const teste = await buscarTesteVazaoAtual(pocoId);
+    if (!teste) return { erro: "Nenhum teste configurado ainda." };
+
+    const ultimaLeitura = await prisma.testeLeitura.findFirst({
+      where: { testeVazaoId: teste.id, excluidoEm: null },
+      orderBy: { tempoMinutos: "desc" },
+    });
+    if (!ultimaLeitura) {
+      return { erro: "Não há leitura para remover." };
+    }
+    await prisma.testeLeitura.update({
+      where: { id: ultimaLeitura.id },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return { erro: erro instanceof Error ? erro.message : "Erro ao remover a leitura." };
+  }
+
+  revalidatePath(`/pocos/${pocoId}/teste-vazao`);
+  return { sucesso: true };
 }

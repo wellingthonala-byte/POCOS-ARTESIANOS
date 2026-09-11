@@ -10,6 +10,9 @@ import {
   atualizarIdentificacaoLocacao,
   atualizarPerfuracao,
   atualizarNiveisVazao,
+  atualizarTipoEInicioTeste,
+  adicionarLeituraTeste,
+  removerUltimaLeituraTeste,
   type EstadoFormularioPoco,
 } from "@/app/pocos/acoes";
 
@@ -41,4 +44,7 @@ export const registroAcoesOffline: Record<string, AcaoBruta> = {
   "cimentacao.remover": removerUltimaCimentacao,
   "preFiltro.adicionar": adicionarPreFiltro,
   "preFiltro.remover": removerUltimoPreFiltro,
+  "testeVazao.atualizarTipo": atualizarTipoEInicioTeste,
+  "testeVazao.adicionarLeitura": adicionarLeituraTeste,
+  "testeVazao.removerLeitura": removerUltimaLeituraTeste,
 };

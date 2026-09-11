@@ -122,6 +122,7 @@ src/
         litologia/page.tsx      # Etapa 3
         construtivo/page.tsx    # Etapa 4 (revestimento, cimentação, pré-filtro)
         niveis-vazao/page.tsx   # Etapa 5 (resumo simples do teste de vazão)
+        teste-vazao/page.tsx    # Teste de vazão completo — leituras, cronômetro, gráficos (Fase 6)
         relatorio/
           pdf/route.ts          # GET → PDF do relatório (Fase 3)
           excel/route.ts        # GET → planilha Excel do relatório (Fase 3)
@@ -140,6 +141,8 @@ src/
     pocos/               # Componentes de tela específicos de poço
       navegacao-etapas.tsx  # Barra de navegação entre as 5 etapas do poço
       perfil-poco.tsx       # Componente cliente: desenho do perfil + controle de escala
+      teste-vazao-completo.tsx  # Config do teste, leituras, gráficos (Fase 6)
+      cronometro.tsx             # Cronômetro pra cronometrar leitura em campo
     pwa/                  # Fase 5
       registrar-service-worker.tsx  # Só o efeito de registrar o service worker
       indicador-conectividade.tsx    # Indicador permanente online/offline no cabeçalho
@@ -176,6 +179,8 @@ src/
       fila-sincronizacao.ts  # Fila de gravações que falharam por falta de rede
       envolver-acao.ts        # Wrapper genérico "tenta a action; se falhar por rede, enfileira"
       registro-acoes.ts      # Mapa tipo → server action, usado por enfileirar/sincronizar
+    graficos/
+      grafico-linha.ts        # Gráfico de linha em SVG (string, sem lib) — Fase 6
       sincronizar.ts         # Reaplica a fila quando a conexão volta
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
 public/
@@ -222,11 +227,11 @@ implementações, dependendo se os campos da etapa aceitam nulo:
 
 A etapa 5 do formulário do poço grava um resumo simples (nível estático,
 nível dinâmico estabilizado, vazão estabilizada) direto no mesmo registro
-`teste_vazao` que a Fase 6 vai usar para o teste de vazão completo
-(cronômetro, múltiplas leituras por tempo, tipos escalonado/contínuo/
-recuperação). Por padrão essa etapa cria o teste como `tipo: continuo`; a
-Fase 6 deve reaproveitar o registro existente em vez de criar um duplicado
-quando o poço já tiver um teste simples lançado por aqui.
+`teste_vazao` que a tela de teste de vazão completo da Fase 6
+(`/pocos/[id]/teste-vazao`) usa — por padrão essa etapa cria o teste como
+`tipo: continuo`, e a tela da Fase 6 reaproveita esse registro (não cria
+um duplicado): ela exige que um teste já exista, orientando a lançar o
+nível estático pela etapa 5 primeiro em vez de duplicar esse campo lá.
 
 ### Relatório (PDF/Excel) — decisões da Fase 3
 
@@ -532,6 +537,47 @@ sincronização ficam para as próximas etapas.
   "escritório" foi preservado, o conflito foi gravado com as duas versões,
   a fila local foi esvaziada (o conflito é o item "tratado"), e resolver
   via "aplicar dado offline" reaplicou o valor do técnico corretamente.
+
+### Teste de vazão completo — decisões da Fase 6
+
+- **`/pocos/[id]/teste-vazao` exige que já exista um `teste_vazao`**: em
+  vez de duplicar o campo de nível estático (obrigatório no banco) nessa
+  tela também, ela só orienta a lançar pela etapa 5 ("Níveis e vazão")
+  primeiro se ainda não existir nenhum. Ver seção acima.
+- **Leituras são uma lista encadeada por TEMPO, não por profundidade**:
+  reaproveita o mesmo `useListaTrechos` das listas de trecho (litologia/
+  construtivo) — o padrão "próxima começa onde a anterior terminou" vale
+  igual trocando profundidade por tempo decorrido (`tempo_minutos` da nova
+  leitura tem que ser maior que o da última já lançada). `vazao` por
+  leitura só é obrigatória quando `tipo === "escalonado"` (cada estágio do
+  escalonado tem sua própria vazão; contínuo/recuperação usam uma vazão
+  única, lançada direto no campo "Vazão estabilizada" da etapa 5).
+- **Cronômetro (`cronometro.tsx`) só preenche o campo de tempo decorrido,
+  não substitui digitação manual**: "Usar este tempo" calcula os minutos
+  a partir do relógio (`Date.now()`, não `setInterval` acumulando erro) e
+  escreve no input do formulário de leitura — o técnico ainda confere/edita
+  antes de enviar. Cronômetro e formulário são componentes desacoplados de
+  propósito (o cronômetro não sabe nada sobre teste de vazão), conectados só
+  por essa função de callback.
+- **Gráficos (`grafico-linha.ts`) são SVG gerado como string, sem lib de
+  gráfico** — mesmo raciocínio do desenho do perfil (Fase 4): evita puxar
+  uma dependência nova pra um punhado de pontos, e mantém a porta aberta
+  pra reaproveitar a mesma função se esses gráficos precisarem entrar no
+  relatório em PDF um dia (ver como `gerarSvgPerfilPoco` foi reaproveitado
+  do zero pro PDF na Fase 4). A escala do eixo se ajusta aos dados (não é
+  papel semilog de hidrogeologia, é só um gráfico de dispersão comum) — o
+  público daqui é o técnico de campo, não quem faz análise de Theis.
+- **Rebaixamento×tempo sempre aparece (quando há leitura); vazão×
+  rebaixamento só aparece se alguma leitura tiver vazão lançada** — pra não
+  mostrar um gráfico vazio/sem sentido em teste contínuo/recuperação, onde
+  vazão não é lançada por leitura.
+- **Testado com o teste "contínuo" que o seed já cria pra PT-01** (6
+  leituras de 1 a 360 minutos, todas vazão 3,200): confirma o encadeamento
+  por tempo rejeitando uma leitura fora de ordem (tentei lançar 15min com
+  360min já cadastrado — rejeitado com a mensagem certa) e, trocando o
+  tipo pra escalonado e lançando leituras depois dos 360min existentes, os
+  dois gráficos (incluindo a curva vazão×rebaixamento subindo nos estágios
+  novos) renderizaram corretamente.
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

@@ -58,7 +58,7 @@ export default async function EtapaConstrutivo({
           profundidadeFinal: trecho.profundidadeFinal.toFixed(2),
           detalhe: trecho.granulometria,
         }))}
-        proximaEtapaUrl="/pocos"
+        proximaEtapaUrl={`/pocos/${poco.id}/niveis-vazao`}
       />
     </main>
   );

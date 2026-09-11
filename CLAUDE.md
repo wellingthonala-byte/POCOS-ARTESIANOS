@@ -114,6 +114,7 @@ src/
         perfuracao/page.tsx     # Etapa 2
         litologia/page.tsx      # Etapa 3
         construtivo/page.tsx    # Etapa 4 (revestimento, cimentação, pré-filtro)
+        niveis-vazao/page.tsx   # Etapa 5 (resumo simples do teste de vazão)
       page.tsx
   components/
     pocos/               # Componentes de tela específicos de poço
@@ -159,6 +160,16 @@ implementações, dependendo se os campos da etapa aceitam nulo:
   alteração (debounce de 800ms via Server Action, sem passar por
   localStorage). Ver `FormularioPerfuracao` como referência para as
   próximas etapas.
+
+### Etapa 5 (níveis e vazão) e a Fase 6
+
+A etapa 5 do formulário do poço grava um resumo simples (nível estático,
+nível dinâmico estabilizado, vazão estabilizada) direto no mesmo registro
+`teste_vazao` que a Fase 6 vai usar para o teste de vazão completo
+(cronômetro, múltiplas leituras por tempo, tipos escalonado/contínuo/
+recuperação). Por padrão essa etapa cria o teste como `tipo: continuo`; a
+Fase 6 deve reaproveitar o registro existente em vez de criar um duplicado
+quando o poço já tiver um teste simples lançado por aqui.
 
 ## Fases do projeto
 

@@ -458,3 +458,84 @@ export async function removerUltimoPreFiltro(
   revalidatePath(`/pocos/${pocoId}/construtivo`);
   return { sucesso: true };
 }
+
+// ---------------------------------------------------------------------------
+// Níveis e vazão (resumo simples — o teste de vazão completo, com leituras
+// por tempo e gráficos, é lançado na Fase 6)
+// ---------------------------------------------------------------------------
+
+function lerNumeroOpcional(formData: FormData, campo: string): number | null {
+  const texto = String(formData.get(campo) ?? "")
+    .trim()
+    .replace(",", ".");
+  if (!texto) return null;
+  const valor = Number(texto);
+  if (Number.isNaN(valor) || valor <= 0) {
+    throw new Error(`Valor inválido em "${campo}".`);
+  }
+  return valor;
+}
+
+export async function atualizarNiveisVazao(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  formData: FormData
+): Promise<EstadoFormularioPoco> {
+  try {
+    const nivelEstatico = lerNumeroOpcional(formData, "nivelEstatico");
+    const nivelDinamicoEstabilizado = lerNumeroOpcional(
+      formData,
+      "nivelDinamicoEstabilizado"
+    );
+    const vazaoEstabilizada = lerNumeroOpcional(formData, "vazaoEstabilizada");
+
+    // Nada preenchido ainda (ou só o dinâmico/vazão, sem o estático) — não
+    // dá para gravar o teste sem o nível estático, que é obrigatório no
+    // banco. Aguarda o usuário terminar de digitar, sem mostrar erro.
+    if (nivelEstatico === null) {
+      return { sucesso: true };
+    }
+
+    if (
+      nivelDinamicoEstabilizado !== null &&
+      nivelDinamicoEstabilizado <= nivelEstatico
+    ) {
+      throw new Error(
+        "O nível dinâmico deve ser maior que o nível estático."
+      );
+    }
+
+    const criadoPorId = await obterUsuarioAtualId();
+
+    await prisma.$transaction(async (tx) => {
+      const testeExistente = await tx.testeVazao.findFirst({
+        where: { pocoId, excluidoEm: null },
+        orderBy: { criadoEm: "asc" },
+      });
+
+      if (testeExistente) {
+        await tx.testeVazao.update({
+          where: { id: testeExistente.id },
+          data: { nivelEstatico, nivelDinamicoEstabilizado, vazaoEstabilizada },
+        });
+      } else {
+        await tx.testeVazao.create({
+          data: {
+            pocoId,
+            tipo: "continuo",
+            dataHoraInicio: new Date(),
+            nivelEstatico,
+            nivelDinamicoEstabilizado,
+            vazaoEstabilizada,
+            criadoPorId,
+          },
+        });
+      }
+    });
+  } catch (erro) {
+    return tratarErro(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/niveis-vazao`);
+  return { sucesso: true };
+}

@@ -337,13 +337,14 @@ model Desenvolvimento {
 // ---------------------------------------------------------------------------
 
 model TesteVazao {
-  id                String         @id @default(cuid())
-  pocoId            String         @map("poco_id")
-  tipo              TipoTesteVazao
-  dataHoraInicio    DateTime       @map("data_hora_inicio")
-  nivelEstatico     Decimal        @map("nivel_estatico") @db.Decimal(6, 2)
-  vazaoEstabilizada Decimal?       @map("vazao_estabilizada") @db.Decimal(8, 3)
-  observacoes       String?
+  id                        String         @id @default(cuid())
+  pocoId                    String         @map("poco_id")
+  tipo                      TipoTesteVazao
+  dataHoraInicio            DateTime       @map("data_hora_inicio")
+  nivelEstatico             Decimal        @map("nivel_estatico") @db.Decimal(6, 2)
+  nivelDinamicoEstabilizado Decimal?       @map("nivel_dinamico_estabilizado") @db.Decimal(6, 2)
+  vazaoEstabilizada         Decimal?       @map("vazao_estabilizada") @db.Decimal(8, 3)
+  observacoes               String?
 
   poco Poco @relation(fields: [pocoId], references: [id])
 

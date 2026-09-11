@@ -12,7 +12,7 @@ const etapas: Etapa[] = [
   { chave: "perfuracao", numero: 2, rotulo: "Perfuração", disponivel: true },
   { chave: "litologia", numero: 3, rotulo: "Litologia", disponivel: true },
   { chave: "construtivo", numero: 4, rotulo: "Construtivo", disponivel: true },
-  { chave: "niveis-vazao", numero: 5, rotulo: "Níveis e vazão", disponivel: false },
+  { chave: "niveis-vazao", numero: 5, rotulo: "Níveis e vazão", disponivel: true },
 ];
 
 export function NavegacaoEtapas({

@@ -131,6 +131,7 @@ async function main() {
       tipo: "continuo",
       dataHoraInicio: new Date("2024-03-08T08:00:00Z"),
       nivelEstatico: "8.50",
+      nivelDinamicoEstabilizado: "14.20",
       vazaoEstabilizada: "3.200",
       observacoes: "Teste de vazão contínuo de 6 horas, sem rebaixamento adicional após a 4ª hora.",
       criadoPorId: tecnico.id,

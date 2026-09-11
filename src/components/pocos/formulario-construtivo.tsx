@@ -10,14 +10,10 @@ import {
   removerUltimoPreFiltro,
 } from "@/app/pocos/acoes";
 import { useListaTrechos } from "@/hooks/usar-lista-trechos";
+import { rotulosTipoRevestimento } from "@/lib/rotulos";
 
 const classeCampo =
   "min-h-11 w-full rounded-md border border-gray-300 px-3 text-base";
-
-const rotulosTipoRevestimento: Record<string, string> = {
-  liso: "Liso",
-  filtro: "Filtro",
-};
 
 type TrechoRevestimento = {
   id: string;

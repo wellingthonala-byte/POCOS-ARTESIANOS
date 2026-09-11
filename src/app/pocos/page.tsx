@@ -1,21 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { rotulosStatusPoco, coresStatusPoco } from "@/lib/rotulos";
 
 export const dynamic = "force-dynamic";
-
-const rotulosStatus: Record<string, string> = {
-  planejado: "Planejado",
-  em_perfuracao: "Em perfuração",
-  concluido: "Concluído",
-  cancelado: "Cancelado",
-};
-
-const coresStatus: Record<string, string> = {
-  planejado: "bg-gray-100 text-gray-700",
-  em_perfuracao: "bg-amber-100 text-amber-800",
-  concluido: "bg-green-100 text-green-800",
-  cancelado: "bg-red-100 text-red-800",
-};
 
 export default async function ListaDePocos() {
   const pocos = await prisma.poco.findMany({
@@ -37,7 +24,7 @@ export default async function ListaDePocos() {
           {pocos.map((poco) => (
             <li key={poco.id}>
               <Link
-                href={`/pocos/${poco.id}/identificacao`}
+                href={`/pocos/${poco.id}`}
                 className="block rounded-lg border border-gray-200 p-4 active:bg-gray-50"
               >
                 <div className="flex items-center justify-between gap-2">
@@ -45,9 +32,9 @@ export default async function ListaDePocos() {
                     {poco.identificacao}
                   </span>
                   <span
-                    className={`rounded-full px-3 py-1 text-sm font-medium ${coresStatus[poco.status]}`}
+                    className={`rounded-full px-3 py-1 text-sm font-medium ${coresStatusPoco[poco.status]}`}
                   >
-                    {rotulosStatus[poco.status]}
+                    {rotulosStatusPoco[poco.status]}
                   </span>
                 </div>
                 <p className="mt-1 text-gray-600">

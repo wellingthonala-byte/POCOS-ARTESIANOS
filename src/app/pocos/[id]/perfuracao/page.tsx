@@ -12,7 +12,13 @@ export default async function EtapaPerfuracao({
 }) {
   const { id } = await params;
 
-  const poco = await prisma.poco.findFirst({ where: { id, excluidoEm: null } });
+  const [poco, responsaveisTecnicos] = await Promise.all([
+    prisma.poco.findFirst({ where: { id, excluidoEm: null } }),
+    prisma.usuario.findMany({
+      where: { papel: "responsavel_tecnico", excluidoEm: null, ativo: true },
+      orderBy: { nome: "asc" },
+    }),
+  ]);
 
   if (!poco) {
     notFound();
@@ -36,7 +42,13 @@ export default async function EtapaPerfuracao({
             ? poco.profundidadeFinal.toString()
             : "",
           numeroArt: poco.numeroArt ?? "",
+          responsavelTecnicoId: poco.responsavelTecnicoId ?? "",
         }}
+        responsaveisTecnicos={responsaveisTecnicos.map((usuario) => ({
+          id: usuario.id,
+          nome: usuario.nome,
+          crea: usuario.crea,
+        }))}
         proximaEtapaUrl={`/pocos/${poco.id}/litologia`}
       />
     </main>

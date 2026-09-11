@@ -4,13 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MetodoPerfuracao } from "@/generated/prisma/enums";
 import { atualizarPerfuracao } from "@/app/pocos/acoes";
-
-const rotulosMetodo: Record<string, string> = {
-  rotativo: "Rotativo",
-  rotopneumatico: "Rotopneumático",
-  percussao: "Percussão",
-  misto: "Misto",
-};
+import { rotulosMetodoPerfuracao } from "@/lib/rotulos";
 
 type ValoresPerfuracao = {
   metodoPerfuracao: string;
@@ -18,18 +12,23 @@ type ValoresPerfuracao = {
   dataFimPerfuracao: string;
   profundidadeFinal: string;
   numeroArt: string;
+  responsavelTecnicoId: string;
 };
 
 const classeCampo =
   "min-h-11 w-full rounded-md border border-gray-300 px-3 text-base";
 
+type ResponsavelTecnico = { id: string; nome: string; crea: string | null };
+
 export function FormularioPerfuracao({
   pocoId,
   valoresIniciais,
+  responsaveisTecnicos,
   proximaEtapaUrl,
 }: {
   pocoId: string;
   valoresIniciais: ValoresPerfuracao;
+  responsaveisTecnicos: ResponsavelTecnico[];
   proximaEtapaUrl: string;
 }) {
   const router = useRouter();
@@ -89,7 +88,7 @@ export function FormularioPerfuracao({
           <option value="">Não informado</option>
           {Object.values(MetodoPerfuracao).map((valor) => (
             <option key={valor} value={valor}>
-              {rotulosMetodo[valor]}
+              {rotulosMetodoPerfuracao[valor]}
             </option>
           ))}
         </select>
@@ -135,6 +134,24 @@ export function FormularioPerfuracao({
           placeholder="Ex.: MG20240012345"
           className={classeCampo}
         />
+      </Campo>
+
+      <Campo rotulo="Responsável técnico">
+        <select
+          value={valores.responsavelTecnicoId}
+          onChange={(e) =>
+            atualizarCampo("responsavelTecnicoId", e.target.value)
+          }
+          className={classeCampo}
+        >
+          <option value="">Não informado</option>
+          {responsaveisTecnicos.map((usuario) => (
+            <option key={usuario.id} value={usuario.id}>
+              {usuario.nome}
+              {usuario.crea ? ` — CREA ${usuario.crea}` : ""}
+            </option>
+          ))}
+        </select>
       </Campo>
 
       <p aria-live="polite" className="min-h-5 text-sm text-gray-500">

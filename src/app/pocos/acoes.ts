@@ -149,6 +149,7 @@ function lerCamposPerfuracao(formData: FormData) {
     .trim()
     .replace(",", ".");
   const numeroArt = String(formData.get("numeroArt") ?? "").trim();
+  const responsavelTecnicoId = String(formData.get("responsavelTecnicoId") ?? "").trim();
 
   if (dataInicioPerfuracao && dataFimPerfuracao) {
     if (new Date(dataFimPerfuracao) < new Date(dataInicioPerfuracao)) {
@@ -172,6 +173,7 @@ function lerCamposPerfuracao(formData: FormData) {
     dataFimPerfuracao: dataFimPerfuracao ? new Date(dataFimPerfuracao) : null,
     profundidadeFinal: profundidadeFinalNumero,
     numeroArt: numeroArt || null,
+    responsavelTecnicoId: responsavelTecnicoId || null,
   };
 }
 

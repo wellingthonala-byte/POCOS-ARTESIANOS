@@ -22,6 +22,12 @@ export function NavegacaoPrincipal() {
         >
           Clientes
         </Link>
+        <Link
+          href="/configuracoes"
+          className="flex min-h-11 items-center rounded-md px-3 font-medium text-gray-700 active:bg-gray-100"
+        >
+          Configurações
+        </Link>
       </nav>
     </header>
   );

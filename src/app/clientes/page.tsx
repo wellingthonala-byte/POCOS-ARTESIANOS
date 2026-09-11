@@ -1,12 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { rotulosTipoPessoa } from "@/lib/rotulos";
 
 export const dynamic = "force-dynamic";
-
-const rotulosTipoPessoa: Record<string, string> = {
-  fisica: "Pessoa física",
-  juridica: "Pessoa jurídica",
-};
 
 export default async function ListaDeClientes() {
   const clientes = await prisma.cliente.findMany({

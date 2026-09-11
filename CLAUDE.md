@@ -108,20 +108,25 @@ src/
   app/
     clientes/            # CRUD de cliente (Fase 2)
     obras/                # CRUD de obra (Fase 2)
+    configuracoes/        # Dados da empresa usados no relatório (Fase 3)
     pocos/               # Lista de poços, criação e edição (Fase 2)
       acoes.ts           # Server actions de poço ("use server")
       novo/page.tsx      # Criação — etapa 1 (identificação e locação)
       [id]/
+        page.tsx                # Detalhe do poço + baixar relatório (Fase 3)
         identificacao/page.tsx  # Etapa 1 (editar poço existente)
         perfuracao/page.tsx     # Etapa 2
         litologia/page.tsx      # Etapa 3
         construtivo/page.tsx    # Etapa 4 (revestimento, cimentação, pré-filtro)
         niveis-vazao/page.tsx   # Etapa 5 (resumo simples do teste de vazão)
-      page.tsx
+        relatorio/
+          pdf/route.ts          # GET → PDF do relatório (Fase 3)
+          excel/route.ts        # GET → planilha Excel do relatório (Fase 3)
   components/
-    navegacao-principal.tsx  # Cabeçalho com links para Poços/Obras/Clientes
+    navegacao-principal.tsx  # Cabeçalho com links para Poços/Obras/Clientes/Configurações
     clientes/
     obras/
+    configuracoes/
     pocos/               # Componentes de tela específicos de poço
       navegacao-etapas.tsx  # Barra de navegação entre as 5 etapas do poço
   hooks/
@@ -130,6 +135,14 @@ src/
   lib/
     prisma.ts            # Cliente Prisma singleton (com driver adapter)
     usuario-atual.ts      # Placeholder até existir autenticação (ver seção abaixo)
+    rotulos.ts            # Rótulos em português dos enums — única fonte, usada nas
+                           # telas e nos relatórios
+    relatorio/
+      dados.ts            # Busca tudo que o relatório precisa para um poço
+      template.ts          # Monta o HTML do PDF (strings simples, ver nota abaixo)
+      pdf.ts               # HTML → PDF via Puppeteer (cabeçalho/rodapé, Página X de Y)
+      excel.ts             # Workbook com as 5 abas via exceljs
+      nome-arquivo.ts       # relatorio-poco-{identificacao}-{data}.{pdf,xlsx}
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
 prisma/
   schema.prisma          # Schema do banco (entidades da Fase 1)
@@ -175,6 +188,31 @@ nível dinâmico estabilizado, vazão estabilizada) direto no mesmo registro
 recuperação). Por padrão essa etapa cria o teste como `tipo: continuo`; a
 Fase 6 deve reaproveitar o registro existente em vez de criar um duplicado
 quando o poço já tiver um teste simples lançado por aqui.
+
+### Relatório (PDF/Excel) — decisões da Fase 3
+
+- **`configuracao`** é uma tabela singleton (sempre uma única linha) com os
+  dados da empresa usados no cabeçalho/capa do relatório — nome, logo (URL),
+  CNPJ, endereço, telefone, e-mail. Diferente das demais tabelas, não tem
+  `criado_por_id`/`excluido_em`/`sincronizado_em`: não é dado de campo, é
+  configuração da aplicação. Editável em `/configuracoes`.
+- **`poco.responsavel_tecnico_id`**: faltava, na Fase 1, quem assina o
+  relatório (nome + CREA) — só existia `numero_art`. Aponta para um
+  `usuario` com `papel: responsavel_tecnico`; lançado na etapa 2
+  (perfuração), junto do número da ART.
+- **O template do relatório é HTML montado com strings simples
+  (`template.ts`), não JSX/React**: o Next.js recusa buildar um Route
+  Handler cujo grafo de módulos importe `react-dom/server`
+  ("renderize como Server Component em vez disso"), o que inviabiliza usar
+  `renderToStaticMarkup` para gerar o HTML que vai para o Puppeteer. Por
+  causa disso, todo valor vindo de texto digitado pelo usuário é escapado
+  manualmente com `escaparHtml` antes de entrar no template — não há o
+  escape automático do JSX aqui. Ao mexer em `template.ts`, nunca interpole
+  um campo de texto sem passar por `escaparHtml`.
+- **Puppeteer roda com `--no-sandbox`**: necessário para funcionar como root
+  em container. Cada chamada de `gerarRelatorioPdf` sobe e derruba um
+  Chromium — aceitável na escala de uma única empresa; se o volume crescer,
+  vale manter um browser Puppeteer persistente em vez de um por requisição.
 
 ## Fases do projeto
 

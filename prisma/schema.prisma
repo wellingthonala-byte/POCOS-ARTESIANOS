@@ -74,6 +74,29 @@ enum TipoAnexo {
 }
 
 // ---------------------------------------------------------------------------
+// Configuração da empresa (dados do cabeçalho/rodapé do relatório)
+//
+// Tabela singleton — sempre uma única linha. Diferente das demais tabelas,
+// não tem criado_por_id/excluido_em/sincronizado_em: não é dado de campo
+// lançado por um técnico, é configuração da aplicação mantida pelo admin.
+// ---------------------------------------------------------------------------
+
+model Configuracao {
+  id          String  @id @default(cuid())
+  nomeEmpresa String  @map("nome_empresa")
+  logoUrl     String? @map("logo_url")
+  cnpj        String?
+  endereco    String?
+  telefone    String?
+  email       String?
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  @@map("configuracao")
+}
+
+// ---------------------------------------------------------------------------
 // Usuário
 // ---------------------------------------------------------------------------
 
@@ -98,7 +121,8 @@ model Usuario {
   usuariosCriados           Usuario[]          @relation("UsuarioCriadoPor")
   clientesCriados           Cliente[]
   obrasCriadas              Obra[]
-  pocosCriados              Poco[]
+  pocosCriados              Poco[]             @relation("PocoCriadoPor")
+  pocosComoResponsavel      Poco[]             @relation("PocoResponsavelTecnico")
   camadasLitologicasCriadas CamadaLitologica[]
   revestimentosCriados      Revestimento[]
   cimentacoesCriadas        Cimentacao[]
@@ -188,12 +212,14 @@ model Poco {
   profundidadeFinal    Decimal?          @map("profundidade_final") @db.Decimal(6, 2)
 
   // Responsabilidade técnica (para o relatório final)
-  numeroArt String? @map("numero_art")
+  numeroArt            String? @map("numero_art")
+  responsavelTecnicoId String? @map("responsavel_tecnico_id")
 
-  obra Obra @relation(fields: [obraId], references: [id])
+  obra               Obra     @relation(fields: [obraId], references: [id])
+  responsavelTecnico Usuario? @relation("PocoResponsavelTecnico", fields: [responsavelTecnicoId], references: [id])
 
   criadoPorId String  @map("criado_por_id")
-  criadoPor   Usuario @relation(fields: [criadoPorId], references: [id])
+  criadoPor   Usuario @relation("PocoCriadoPor", fields: [criadoPorId], references: [id])
 
   criadoEm       DateTime  @default(now()) @map("criado_em")
   atualizadoEm   DateTime  @updatedAt @map("atualizado_em")

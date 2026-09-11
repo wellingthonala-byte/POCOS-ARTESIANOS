@@ -5,19 +5,10 @@ import { useRouter } from "next/navigation";
 import { StatusPoco, MetodoObtencaoCoordenada } from "@/generated/prisma/enums";
 import { useRascunhoFormulario } from "@/hooks/usar-rascunho-formulario";
 import type { EstadoFormularioPoco } from "@/app/pocos/acoes";
-
-const rotulosStatus: Record<string, string> = {
-  planejado: "Planejado",
-  em_perfuracao: "Em perfuração",
-  concluido: "Concluído",
-  cancelado: "Cancelado",
-};
-
-const rotulosMetodoCoordenada: Record<string, string> = {
-  manual: "Digitado manualmente",
-  gps_celular: "GPS do celular",
-  gps_geodesico: "GPS geodésico",
-};
+import {
+  rotulosStatusPoco,
+  rotulosMetodoObtencaoCoordenada,
+} from "@/lib/rotulos";
 
 type Obra = { id: string; rotulo: string };
 
@@ -167,7 +158,7 @@ export function FormularioIdentificacaoLocacao({
         >
           {Object.values(StatusPoco).map((valor) => (
             <option key={valor} value={valor}>
-              {rotulosStatus[valor]}
+              {rotulosStatusPoco[valor]}
             </option>
           ))}
         </select>
@@ -246,7 +237,7 @@ export function FormularioIdentificacaoLocacao({
           >
             {Object.values(MetodoObtencaoCoordenada).map((valor) => (
               <option key={valor} value={valor}>
-                {rotulosMetodoCoordenada[valor]}
+                {rotulosMetodoObtencaoCoordenada[valor]}
               </option>
             ))}
           </select>

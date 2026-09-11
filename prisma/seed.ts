@@ -7,6 +7,16 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  await prisma.configuracao.create({
+    data: {
+      nomeEmpresa: "Perfuradora Água Viva Ltda",
+      cnpj: "11.222.333/0001-44",
+      endereco: "Av. Rondon Pacheco, 1500, Uberlândia/MG",
+      telefone: "(34) 3232-5050",
+      email: "contato@aguaviva.com.br",
+    },
+  });
+
   const senhaHashPadrao = await bcrypt.hash("trocar123", 10);
 
   const admin = await prisma.usuario.create({
@@ -84,6 +94,7 @@ async function main() {
       dataFimPerfuracao: new Date("2024-03-06"),
       profundidadeFinal: "60.00",
       numeroArt: "MG20240012345",
+      responsavelTecnicoId: responsavelTecnico.id,
       criadoPorId: tecnico.id,
     },
   });
@@ -197,6 +208,7 @@ async function main() {
       dataFimPerfuracao: new Date("2024-04-22"),
       profundidadeFinal: "180.00",
       numeroArt: "MG20240015678",
+      responsavelTecnicoId: responsavelTecnico.id,
       criadoPorId: tecnico.id,
     },
   });

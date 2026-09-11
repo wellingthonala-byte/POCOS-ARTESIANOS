@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   adicionarCamadaLitologica,
   removerUltimaCamadaLitologica,
 } from "@/app/pocos/acoes";
+import { useListaTrechos } from "@/hooks/usar-lista-trechos";
 
 const sugestoesLitologia = [
   "Areia fina",
@@ -50,24 +50,20 @@ export function FormularioLitologia({
     ? ultimaCamada.profundidadeFinal
     : "0.00";
 
-  const [estadoAdicionar, adicionar, adicionando] = useActionState(
+  const {
+    estadoAdicionar,
+    adicionar,
+    adicionando,
+    estadoRemover,
+    remover,
+    removendo,
+    formularioRef,
+    primeiroCampoRef,
+  } = useListaTrechos(
     adicionarCamadaLitologica.bind(null, pocoId),
-    {}
-  );
-  const [estadoRemover, remover, removendo] = useActionState(
     removerUltimaCamadaLitologica.bind(null, pocoId),
     {}
   );
-
-  const formularioRef = useRef<HTMLFormElement>(null);
-  const campoProfundidadeRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (estadoAdicionar.sucesso) {
-      formularioRef.current?.reset();
-      campoProfundidadeRef.current?.focus();
-    }
-  }, [estadoAdicionar]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -127,7 +123,7 @@ export function FormularioLitologia({
             Profundidade final (m) <span className="text-red-600">*</span>
           </span>
           <input
-            ref={campoProfundidadeRef}
+            ref={primeiroCampoRef}
             name="profundidadeFinal"
             required
             inputMode="decimal"

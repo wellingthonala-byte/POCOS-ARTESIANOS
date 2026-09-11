@@ -6,6 +6,7 @@ import {
   StatusPoco,
   MetodoObtencaoCoordenada,
   MetodoPerfuracao,
+  TipoRevestimento,
 } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { obterUsuarioAtualId } from "@/lib/usuario-atual";
@@ -74,6 +75,40 @@ function tratarErro(erro: unknown): EstadoFormularioPoco {
     return { erro: "Já existe um poço com essa identificação nesta obra." };
   }
   return { erro: erro instanceof Error ? erro.message : "Erro ao salvar o poço." };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers para listas de trechos encadeados (litologia, revestimento,
+// cimentação, pré-filtro): cada trecho novo só informa a profundidade
+// final — a inicial vem do último trecho já lançado (ou zero).
+// ---------------------------------------------------------------------------
+
+function lerProfundidadeFinal(formData: FormData): number {
+  const texto = String(formData.get("profundidadeFinal") ?? "")
+    .trim()
+    .replace(",", ".");
+  const valor = Number(texto);
+  if (!texto || Number.isNaN(valor) || valor <= 0) {
+    throw new Error("Profundidade final inválida.");
+  }
+  return valor;
+}
+
+function calcularProfundidadeInicial(
+  ultimoTrecho: { profundidadeFinal: Prisma.Decimal } | null
+): number {
+  return ultimoTrecho ? ultimoTrecho.profundidadeFinal.toNumber() : 0;
+}
+
+function validarProfundidadeEncadeada(
+  profundidadeFinal: number,
+  profundidadeInicial: number
+) {
+  if (profundidadeFinal <= profundidadeInicial) {
+    throw new Error(
+      "A profundidade final deve ser maior que a profundidade inicial do trecho."
+    );
+  }
 }
 
 export async function criarPoco(
@@ -160,19 +195,10 @@ export async function adicionarCamadaLitologica(
   _estadoAnterior: EstadoFormularioPoco,
   formData: FormData
 ): Promise<EstadoFormularioPoco> {
-  const descricao = String(formData.get("descricao") ?? "").trim();
-  const profundidadeFinalTexto = String(formData.get("profundidadeFinal") ?? "")
-    .trim()
-    .replace(",", ".");
-
-  if (!descricao) return { erro: "Informe a descrição da camada." };
-
-  const profundidadeFinal = Number(profundidadeFinalTexto);
-  if (!profundidadeFinalTexto || Number.isNaN(profundidadeFinal) || profundidadeFinal <= 0) {
-    return { erro: "Profundidade final inválida." };
-  }
-
   try {
+    const descricao = String(formData.get("descricao") ?? "").trim();
+    if (!descricao) throw new Error("Informe a descrição da camada.");
+    const profundidadeFinal = lerProfundidadeFinal(formData);
     const criadoPorId = await obterUsuarioAtualId();
 
     await prisma.$transaction(async (tx) => {
@@ -180,16 +206,8 @@ export async function adicionarCamadaLitologica(
         where: { pocoId, excluidoEm: null },
         orderBy: { ordem: "desc" },
       });
-
-      const profundidadeInicial = ultimaCamada
-        ? ultimaCamada.profundidadeFinal.toNumber()
-        : 0;
-
-      if (profundidadeFinal <= profundidadeInicial) {
-        throw new Error(
-          "A profundidade final deve ser maior que a profundidade inicial da camada."
-        );
-      }
+      const profundidadeInicial = calcularProfundidadeInicial(ultimaCamada);
+      validarProfundidadeEncadeada(profundidadeFinal, profundidadeInicial);
 
       await tx.camadaLitologica.create({
         data: {
@@ -203,7 +221,7 @@ export async function adicionarCamadaLitologica(
       });
     });
   } catch (erro) {
-    return { erro: erro instanceof Error ? erro.message : "Erro ao salvar a camada." };
+    return tratarErro(erro);
   }
 
   revalidatePath(`/pocos/${pocoId}/litologia`);
@@ -234,5 +252,209 @@ export async function removerUltimaCamadaLitologica(
   }
 
   revalidatePath(`/pocos/${pocoId}/litologia`);
+  return { sucesso: true };
+}
+
+// ---------------------------------------------------------------------------
+// Perfil construtivo: revestimento, cimentação, pré-filtro
+// ---------------------------------------------------------------------------
+
+export async function adicionarRevestimento(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  formData: FormData
+): Promise<EstadoFormularioPoco> {
+  try {
+    const tipo = String(formData.get("tipo") ?? "").trim();
+    const diametro = String(formData.get("diametro") ?? "").trim();
+    const material = String(formData.get("material") ?? "").trim();
+    if (!diametro) throw new Error("Informe o diâmetro.");
+    const tipoValidado = validarEnum(
+      Object.values(TipoRevestimento),
+      tipo,
+      "Tipo de revestimento"
+    );
+    const profundidadeFinal = lerProfundidadeFinal(formData);
+    const criadoPorId = await obterUsuarioAtualId();
+
+    await prisma.$transaction(async (tx) => {
+      const ultimoTrecho = await tx.revestimento.findFirst({
+        where: { pocoId, excluidoEm: null },
+        orderBy: { ordem: "desc" },
+      });
+      const profundidadeInicial = calcularProfundidadeInicial(ultimoTrecho);
+      validarProfundidadeEncadeada(profundidadeFinal, profundidadeInicial);
+
+      await tx.revestimento.create({
+        data: {
+          pocoId,
+          ordem: (ultimoTrecho?.ordem ?? 0) + 1,
+          profundidadeInicial,
+          profundidadeFinal,
+          tipo: tipoValidado,
+          material: material || null,
+          diametro,
+          criadoPorId,
+        },
+      });
+    });
+  } catch (erro) {
+    return tratarErro(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/construtivo`);
+  return { sucesso: true };
+}
+
+export async function removerUltimoRevestimento(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  _formData: FormData
+): Promise<EstadoFormularioPoco> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    const ultimoTrecho = await prisma.revestimento.findFirst({
+      where: { pocoId, excluidoEm: null },
+      orderBy: { ordem: "desc" },
+    });
+    if (!ultimoTrecho) {
+      return { erro: "Não há trecho para remover." };
+    }
+    await prisma.revestimento.update({
+      where: { id: ultimoTrecho.id },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return { erro: erro instanceof Error ? erro.message : "Erro ao remover o revestimento." };
+  }
+
+  revalidatePath(`/pocos/${pocoId}/construtivo`);
+  return { sucesso: true };
+}
+
+export async function adicionarCimentacao(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  formData: FormData
+): Promise<EstadoFormularioPoco> {
+  try {
+    const profundidadeFinal = lerProfundidadeFinal(formData);
+    const criadoPorId = await obterUsuarioAtualId();
+
+    await prisma.$transaction(async (tx) => {
+      const ultimoTrecho = await tx.cimentacao.findFirst({
+        where: { pocoId, excluidoEm: null },
+        orderBy: { ordem: "desc" },
+      });
+      const profundidadeInicial = calcularProfundidadeInicial(ultimoTrecho);
+      validarProfundidadeEncadeada(profundidadeFinal, profundidadeInicial);
+
+      await tx.cimentacao.create({
+        data: {
+          pocoId,
+          ordem: (ultimoTrecho?.ordem ?? 0) + 1,
+          profundidadeInicial,
+          profundidadeFinal,
+          criadoPorId,
+        },
+      });
+    });
+  } catch (erro) {
+    return tratarErro(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/construtivo`);
+  return { sucesso: true };
+}
+
+export async function removerUltimaCimentacao(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  _formData: FormData
+): Promise<EstadoFormularioPoco> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    const ultimoTrecho = await prisma.cimentacao.findFirst({
+      where: { pocoId, excluidoEm: null },
+      orderBy: { ordem: "desc" },
+    });
+    if (!ultimoTrecho) {
+      return { erro: "Não há trecho para remover." };
+    }
+    await prisma.cimentacao.update({
+      where: { id: ultimoTrecho.id },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return { erro: erro instanceof Error ? erro.message : "Erro ao remover a cimentação." };
+  }
+
+  revalidatePath(`/pocos/${pocoId}/construtivo`);
+  return { sucesso: true };
+}
+
+export async function adicionarPreFiltro(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  formData: FormData
+): Promise<EstadoFormularioPoco> {
+  try {
+    const granulometria = String(formData.get("granulometria") ?? "").trim();
+    const profundidadeFinal = lerProfundidadeFinal(formData);
+    const criadoPorId = await obterUsuarioAtualId();
+
+    await prisma.$transaction(async (tx) => {
+      const ultimoTrecho = await tx.preFiltro.findFirst({
+        where: { pocoId, excluidoEm: null },
+        orderBy: { ordem: "desc" },
+      });
+      const profundidadeInicial = calcularProfundidadeInicial(ultimoTrecho);
+      validarProfundidadeEncadeada(profundidadeFinal, profundidadeInicial);
+
+      await tx.preFiltro.create({
+        data: {
+          pocoId,
+          ordem: (ultimoTrecho?.ordem ?? 0) + 1,
+          profundidadeInicial,
+          profundidadeFinal,
+          granulometria: granulometria || null,
+          criadoPorId,
+        },
+      });
+    });
+  } catch (erro) {
+    return tratarErro(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/construtivo`);
+  return { sucesso: true };
+}
+
+export async function removerUltimoPreFiltro(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  _formData: FormData
+): Promise<EstadoFormularioPoco> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    const ultimoTrecho = await prisma.preFiltro.findFirst({
+      where: { pocoId, excluidoEm: null },
+      orderBy: { ordem: "desc" },
+    });
+    if (!ultimoTrecho) {
+      return { erro: "Não há trecho para remover." };
+    }
+    await prisma.preFiltro.update({
+      where: { id: ultimoTrecho.id },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return { erro: erro instanceof Error ? erro.message : "Erro ao remover o pré-filtro." };
+  }
+
+  revalidatePath(`/pocos/${pocoId}/construtivo`);
   return { sucesso: true };
 }

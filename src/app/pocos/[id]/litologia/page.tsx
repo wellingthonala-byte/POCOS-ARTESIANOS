@@ -36,7 +36,7 @@ export default async function EtapaLitologia({
           profundidadeFinal: camada.profundidadeFinal.toFixed(2),
           descricao: camada.descricao,
         }))}
-        proximaEtapaUrl="/pocos"
+        proximaEtapaUrl={`/pocos/${poco.id}/construtivo`}
       />
     </main>
   );

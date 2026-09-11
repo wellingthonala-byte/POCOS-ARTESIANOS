@@ -142,6 +142,7 @@ src/
   hooks/
     usar-rascunho-formulario.ts  # Autosave de formulário em localStorage
     usar-lista-trechos.ts        # Wiring comum às listas de trechos encadeados
+    usar-autosave-poco.ts        # Autosave com debounce direto no banco (perfuração, níveis)
   lib/
     prisma.ts            # Cliente Prisma singleton (com driver adapter)
     usuario-atual.ts      # Placeholder até existir autenticação (ver seção abaixo)
@@ -167,6 +168,7 @@ src/
                              # nome/versão/tabelas do banco (Fase 5)
       banco-local.ts         # Espelho em IndexedDB dos poços já abertos com internet
       fila-sincronizacao.ts  # Fila de gravações que falharam por falta de rede
+      envolver-acao.ts        # Wrapper genérico "tenta a action; se falhar por rede, enfileira"
       registro-acoes.ts      # Mapa tipo → server action, usado por enfileirar/sincronizar
       sincronizar.ts         # Reaplica a fila quando a conexão volta
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
@@ -390,25 +392,38 @@ sincronização ficam para as próximas etapas.
   como `TypeError: Failed to fetch` (verificado empiricamente derrubando o
   servidor no meio de um submit) sem que o corpo da action no servidor
   chegue a rodar, então não tinha como capturar isso *dentro* da action.
-  A correção entra na CHAMADA da action, não nela: `useListaTrechos`
-  (`src/hooks/usar-lista-trechos.ts`) agora envolve `acaoAdicionar`/
-  `acaoRemover` com `envolverComFilaOffline` antes de passar pro
-  `useActionState` — se a chamada rejeitar com `TypeError`, em vez de
-  propagar guarda `{tipo, pocoId, payload}` em `fila-sincronizacao.ts`
-  (IndexedDB) e devolve `{sucesso: true, pendente: true}`, reaproveitando o
-  reset-de-formulário-e-foco que já existia pro caminho de sucesso — dá
-  pra continuar lançando trechos em sequência mesmo offline. Como
-  `useListaTrechos` é compartilhado por litologia/revestimento/cimentação/
-  pré-filtro, as quatro entram de uma vez; cada uma só precisou declarar
-  seu `tipoAdicionar`/`tipoRemover` (chave no registro abaixo). Perfuração,
-  níveis-vazão e identificação AINDA NÃO passam por esse wrapper — ficam
-  pra continuar o mesmo padrão depois.
+  A correção entra na CHAMADA da action, não nela: `envolver-acao.ts`
+  exporta `envolverAcaoComFilaOffline`, que troca a action real por uma
+  versão que tenta a chamada e, se rejeitar com `TypeError`, guarda
+  `{tipo, pocoId, payload}` em `fila-sincronizacao.ts` (IndexedDB) e
+  devolve `{...estadoAnterior, sucesso: true, pendente: true}` em vez de
+  propagar o erro. `useListaTrechos` (litologia/revestimento/cimentação/
+  pré-filtro) usa isso direto no lugar de `acaoAdicionar`/`acaoRemover`
+  antes de passar pro `useActionState` — o retorno "pendente" reaproveita
+  o reset-de-formulário-e-foco que já existia pro caminho de sucesso, dá
+  pra continuar lançando trechos em sequência mesmo offline. As telas de
+  autosave direto no banco (perfuração, níveis e vazão — antes duplicadas
+  quase igual, agora unificadas em `useAutosavePoco`) usam o mesmo wrapper
+  dentro do `startTransition`. A edição de identificação/locação de um
+  poço já existente (`FormularioIdentificacaoLocacao`, quando
+  `valoresIniciais.id` existe) também envolve sua `acao` da mesma forma —
+  mas **criar um poço novo (`criarPoco`, sem `id` ainda) fica de fora de
+  propósito**: sem ID do banco não dá pra navegar pra próxima etapa nem
+  saber pra qual poço a gravação pertence, e resolver isso exigiria gerar
+  um ID temporário no cliente e reconciliar com o ID real depois de
+  sincronizar — criar um poço novo sem conexão continua quebrando a tela
+  até esse mecanismo existir. Como o retorno "pendente" de uma edição não
+  carrega o `pocoId` de volta (a action real nunca rodou), o efeito que
+  decide pra onde navegar usa `estado.pocoId ?? pocoId` (o ID já conhecido
+  de antes) — sem isso, editar identificação offline navegava de volta pra
+  lista genérica de poços em vez de seguir pra próxima etapa do fluxo.
 - **`registro-acoes.ts` mapeia string→server action** porque IndexedDB só
   guarda dado serializável, nunca uma referência de função — o item da fila
   guarda só o `tipo` (ex.: `"litologia.adicionar"`), e tanto enfileirar
   quanto `sincronizarFila` (`sincronizar.ts`) consultam esse mapa pra saber
-  qual action chamar. Toda entrada nova em `useListaTrechos` precisa de uma
-  linha correspondente aqui.
+  qual action chamar. Toda tela nova que passe a usar
+  `envolverAcaoComFilaOffline` precisa de uma linha correspondente aqui,
+  com o mesmo texto de `tipo` usado na chamada.
 - **`sincronizarFila` processa a fila agrupada por poço, e para a cadeia
   daquele poço na primeira falha**: os itens de um mesmo poço formam uma
   sequência que faz sentido só naquela ordem (ex.: as actions de
@@ -433,7 +448,12 @@ sincronização ficam para as próximas etapas.
   tela, o item aparece na fila em IndexedDB, e religando o servidor +
   recarregando a página (simulando o técnico reabrindo o app com sinal de
   volta) sincroniza e o dado aparece de verdade no Postgres. Cobre
-  adicionar e remover.
+  adicionar/remover trecho, autosave de perfuração e edição de
+  identificação de um poço existente (inclusive um caso em que o próprio
+  `router.push` pós-edição falhou por causa da rede e o Next caiu pra
+  navegação de página cheia no meio do teste — o item continuou intacto na
+  fila e sincronizou normalmente assim que o servidor voltou, sem duplicar
+  nem perder a tentativa).
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

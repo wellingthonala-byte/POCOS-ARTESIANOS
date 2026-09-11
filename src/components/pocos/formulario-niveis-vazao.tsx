@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { atualizarNiveisVazao } from "@/app/pocos/acoes";
+import { useAutosavePoco } from "@/hooks/usar-autosave-poco";
 
 type ValoresNiveisVazao = {
   nivelEstatico: string;
@@ -28,46 +29,11 @@ export function FormularioNiveisVazao({
   proximaEtapaUrl: string;
 }) {
   const router = useRouter();
-  const [valores, setValores] = useState(valoresIniciais);
-  const [pendente, iniciarTransicao] = useTransition();
-  const [status, setStatus] = useState<"ocioso" | "salvo" | "erro">("ocioso");
-  const [mensagemErro, setMensagemErro] = useState<string | null>(null);
-  const montado = useRef(false);
-
-  function salvar(valoresParaSalvar: ValoresNiveisVazao, aoConcluir?: () => void) {
-    const formData = new FormData();
-    Object.entries(valoresParaSalvar).forEach(([chave, valor]) =>
-      formData.set(chave, valor)
-    );
-    iniciarTransicao(async () => {
-      const resultado = await atualizarNiveisVazao(pocoId, {}, formData);
-      if (resultado.erro) {
-        setStatus("erro");
-        setMensagemErro(resultado.erro);
-      } else {
-        setStatus("salvo");
-        setMensagemErro(null);
-        aoConcluir?.();
-      }
+  const { valores, atualizarCampo, salvar, emAndamento, status, mensagemErro } =
+    useAutosavePoco(valoresIniciais, atualizarNiveisVazao.bind(null, pocoId), {
+      pocoId,
+      tipo: "niveisVazao.atualizar",
     });
-  }
-
-  useEffect(() => {
-    if (!montado.current) {
-      montado.current = true;
-      return;
-    }
-    const temporizador = setTimeout(() => salvar(valores), 800);
-    return () => clearTimeout(temporizador);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [valores]);
-
-  function atualizarCampo<C extends keyof ValoresNiveisVazao>(
-    campo: C,
-    valor: ValoresNiveisVazao[C]
-  ) {
-    setValores((atual) => ({ ...atual, [campo]: valor }));
-  }
 
   const vazaoEspecifica = useMemo(() => {
     const estatico = paraNumero(valores.nivelEstatico);
@@ -129,7 +95,13 @@ export function FormularioNiveisVazao({
       </div>
 
       <p aria-live="polite" className="min-h-5 text-sm text-gray-500">
-        {pendente ? "Salvando..." : status === "salvo" ? "Alterações salvas." : ""}
+        {emAndamento
+          ? "Salvando..."
+          : status === "salvo"
+            ? "Alterações salvas."
+            : status === "pendente"
+              ? "Sem conexão — guardado neste aparelho, será enviado quando a internet voltar."
+              : ""}
       </p>
 
       {mensagemErro && (
@@ -141,10 +113,10 @@ export function FormularioNiveisVazao({
       <button
         type="button"
         onClick={salvarEContinuar}
-        disabled={pendente}
+        disabled={emAndamento}
         className="min-h-11 rounded-md bg-blue-600 px-4 text-lg font-semibold text-white active:bg-blue-700 disabled:opacity-60"
       >
-        {pendente ? "Salvando..." : "Salvar e concluir"}
+        {emAndamento ? "Salvando..." : "Salvar e concluir"}
       </button>
     </div>
   );

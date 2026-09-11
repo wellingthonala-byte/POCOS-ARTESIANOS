@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { StatusPoco, MetodoObtencaoCoordenada } from "@/generated/prisma/enums";
 import { useRascunhoFormulario } from "@/hooks/usar-rascunho-formulario";
 import type { EstadoFormularioPoco } from "@/app/pocos/acoes";
+import { envolverAcaoComFilaOffline } from "@/lib/offline/envolver-acao";
 import {
   rotulosStatusPoco,
   rotulosMetodoObtencaoCoordenada,
@@ -50,7 +51,18 @@ export function FormularioIdentificacaoLocacao({
   ) => Promise<EstadoFormularioPoco>;
 }) {
   const router = useRouter();
-  const [estado, executarAcao, emAndamento] = useActionState(acao, {});
+  const pocoId = valoresIniciais?.id;
+
+  // Suporte offline (Fase 5, etapa 3) só entra na edição de um poço já
+  // existente: criar um poço novo sem conexão precisaria de um mecanismo
+  // diferente (gerar um ID temporário no cliente e reconciliar depois com
+  // o ID real do banco), que ainda não existe — ver CLAUDE.md.
+  const acaoComFila = useMemo(
+    () => (pocoId ? envolverAcaoComFilaOffline(acao, "identificacao.atualizar", pocoId) : acao),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pocoId]
+  );
+  const [estado, executarAcao, emAndamento] = useActionState(acaoComFila, {});
 
   const chaveRascunho = valoresIniciais?.id ? null : "rascunho-poco-novo";
   const { valores, setValores, limparRascunho } = useRascunhoFormulario(
@@ -71,13 +83,18 @@ export function FormularioIdentificacaoLocacao({
   useEffect(() => {
     if (estado.sucesso) {
       limparRascunho();
-      router.push(estado.pocoId ? `/pocos/${estado.pocoId}/perfuracao` : "/pocos");
+      // No caminho offline (etapa 3), a action nem chega a rodar no
+      // servidor — a alteração fica só na fila local — então o estado
+      // devolvido não tem `pocoId` (é o próprio poço sendo editado, cujo
+      // ID já se conhece de antemão).
+      const idDestino = estado.pocoId ?? pocoId;
+      router.push(idDestino ? `/pocos/${idDestino}/perfuracao` : "/pocos");
       return;
     }
     if (estado.erro) {
       setVersaoFormulario((v) => v + 1);
     }
-  }, [estado, limparRascunho, router]);
+  }, [estado, limparRascunho, router, pocoId]);
 
   function atualizarCampo<C extends keyof ValoresFormulario>(
     campo: C,

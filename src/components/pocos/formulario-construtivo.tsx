@@ -85,7 +85,8 @@ function SecaoRevestimento({
   } = useListaTrechos(
     adicionarRevestimento.bind(null, pocoId),
     removerUltimoRevestimento.bind(null, pocoId),
-    {}
+    {},
+    { pocoId, tipoAdicionar: "revestimento.adicionar", tipoRemover: "revestimento.remover" }
   );
 
   return (
@@ -127,6 +128,12 @@ function SecaoRevestimento({
       {estadoRemover.erro && (
         <p className="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
           {estadoRemover.erro}
+        </p>
+      )}
+      {estadoRemover.pendente && (
+        <p className="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+          Sem conexão — a remoção foi guardada neste aparelho e será enviada
+          quando a internet voltar.
         </p>
       )}
 
@@ -190,6 +197,12 @@ function SecaoRevestimento({
             {estadoAdicionar.erro}
           </p>
         )}
+        {estadoAdicionar.pendente && (
+          <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+            Sem conexão — o trecho foi guardado neste aparelho e será
+            enviado quando a internet voltar.
+          </p>
+        )}
 
         <button
           type="submit"
@@ -225,7 +238,8 @@ function SecaoCimentacao({
   } = useListaTrechos(
     adicionarCimentacao.bind(null, pocoId),
     removerUltimaCimentacao.bind(null, pocoId),
-    {}
+    {},
+    { pocoId, tipoAdicionar: "cimentacao.adicionar", tipoRemover: "cimentacao.remover" }
   );
 
   return (
@@ -267,6 +281,12 @@ function SecaoCimentacao({
           {estadoRemover.erro}
         </p>
       )}
+      {estadoRemover.pendente && (
+        <p className="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+          Sem conexão — a remoção foi guardada neste aparelho e será enviada
+          quando a internet voltar.
+        </p>
+      )}
 
       <form
         ref={formularioRef}
@@ -295,6 +315,12 @@ function SecaoCimentacao({
         {estadoAdicionar.erro && (
           <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
             {estadoAdicionar.erro}
+          </p>
+        )}
+        {estadoAdicionar.pendente && (
+          <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+            Sem conexão — o trecho foi guardado neste aparelho e será
+            enviado quando a internet voltar.
           </p>
         )}
 
@@ -332,7 +358,8 @@ function SecaoPreFiltro({
   } = useListaTrechos(
     adicionarPreFiltro.bind(null, pocoId),
     removerUltimoPreFiltro.bind(null, pocoId),
-    {}
+    {},
+    { pocoId, tipoAdicionar: "preFiltro.adicionar", tipoRemover: "preFiltro.remover" }
   );
 
   return (
@@ -375,6 +402,12 @@ function SecaoPreFiltro({
           {estadoRemover.erro}
         </p>
       )}
+      {estadoRemover.pendente && (
+        <p className="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+          Sem conexão — a remoção foi guardada neste aparelho e será enviada
+          quando a internet voltar.
+        </p>
+      )}
 
       <form
         ref={formularioRef}
@@ -414,6 +447,12 @@ function SecaoPreFiltro({
         {estadoAdicionar.erro && (
           <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
             {estadoAdicionar.erro}
+          </p>
+        )}
+        {estadoAdicionar.pendente && (
+          <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+            Sem conexão — o trecho foi guardado neste aparelho e será
+            enviado quando a internet voltar.
           </p>
         )}
 

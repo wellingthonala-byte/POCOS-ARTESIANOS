@@ -163,7 +163,12 @@ src/
       mapear-dados.ts        # Poço do Prisma (campos Decimal) → formato plano do desenho —
                              # única fonte usada pela tela e pelo relatório em PDF
     offline/
-      banco-local.ts         # Espelho em IndexedDB dos poços já abertos com internet (Fase 5)
+      banco.ts               # Abertura do IndexedDB compartilhado — única fonte do
+                             # nome/versão/tabelas do banco (Fase 5)
+      banco-local.ts         # Espelho em IndexedDB dos poços já abertos com internet
+      fila-sincronizacao.ts  # Fila de gravações que falharam por falta de rede
+      registro-acoes.ts      # Mapa tipo → server action, usado por enfileirar/sincronizar
+      sincronizar.ts         # Reaplica a fila quando a conexão volta
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
 public/
   manifest.json           # Manifest da PWA (Fase 5)
@@ -368,11 +373,67 @@ sincronização ficam para as próximas etapas.
   worker já guarda pra essa rota, sem requisição extra nenhuma. Esse script
   duplica a leitura do IndexedDB (`abrirBanco`/`buscarPoco`/`listarPocos`)
   e os rótulos/cores de status — mantenha em sincronia com
-  `banco-local.ts`/`rotulos.ts` se algo aí mudar. Os links dentro dessa
+  `banco.ts`/`banco-local.ts`/`rotulos.ts` se algo aí mudar, **incluindo o
+  número da versão do banco** (`indexedDB.open('pocos-offline', 2)`,
+  hardcoded ali por não poder importar `VERSAO_BANCO` de `banco.ts` num
+  script solto): abrir com uma versão MENOR que a atual do banco falha com
+  `VersionError` — subir `VERSAO_BANCO` sem atualizar esse número quebra
+  a página de fallback offline. Os links dentro dessa
   página usam `<a>` normal, não `<Link>` do Next: uma navegação cliente
   buscaria o RSC payload pela rede e falharia sem cair de volta no service
   worker do jeito esperado — só uma navegação de página cheia (`<a>`, ou
   recarregar/digitar a URL) é interceptada pelo `fetch` handler.
+- **Etapa 3 — fila de sincronização para gravação offline**: antes desta
+  etapa, submeter qualquer formulário sem rede quebrava a tela inteira com
+  "Application error" — uma Server Action chamada do cliente faz uma
+  requisição de verdade, e se ela falhar por falta de rede o erro chega
+  como `TypeError: Failed to fetch` (verificado empiricamente derrubando o
+  servidor no meio de um submit) sem que o corpo da action no servidor
+  chegue a rodar, então não tinha como capturar isso *dentro* da action.
+  A correção entra na CHAMADA da action, não nela: `useListaTrechos`
+  (`src/hooks/usar-lista-trechos.ts`) agora envolve `acaoAdicionar`/
+  `acaoRemover` com `envolverComFilaOffline` antes de passar pro
+  `useActionState` — se a chamada rejeitar com `TypeError`, em vez de
+  propagar guarda `{tipo, pocoId, payload}` em `fila-sincronizacao.ts`
+  (IndexedDB) e devolve `{sucesso: true, pendente: true}`, reaproveitando o
+  reset-de-formulário-e-foco que já existia pro caminho de sucesso — dá
+  pra continuar lançando trechos em sequência mesmo offline. Como
+  `useListaTrechos` é compartilhado por litologia/revestimento/cimentação/
+  pré-filtro, as quatro entram de uma vez; cada uma só precisou declarar
+  seu `tipoAdicionar`/`tipoRemover` (chave no registro abaixo). Perfuração,
+  níveis-vazão e identificação AINDA NÃO passam por esse wrapper — ficam
+  pra continuar o mesmo padrão depois.
+- **`registro-acoes.ts` mapeia string→server action** porque IndexedDB só
+  guarda dado serializável, nunca uma referência de função — o item da fila
+  guarda só o `tipo` (ex.: `"litologia.adicionar"`), e tanto enfileirar
+  quanto `sincronizarFila` (`sincronizar.ts`) consultam esse mapa pra saber
+  qual action chamar. Toda entrada nova em `useListaTrechos` precisa de uma
+  linha correspondente aqui.
+- **`sincronizarFila` processa a fila agrupada por poço, e para a cadeia
+  daquele poço na primeira falha**: os itens de um mesmo poço formam uma
+  sequência que faz sentido só naquela ordem (ex.: as actions de
+  "adicionar"/"remover última" recalculam a última ordem/profundidade
+  consultando o banco a cada chamada — não guardam um ID decidido no
+  cliente — o que só dá o resultado certo se forem reaplicadas na ordem
+  original), então uma falha no meio não pode deixar os itens seguintes
+  daquele poço passarem na frente fora de ordem. Poços diferentes são
+  filas independentes e não se bloqueiam entre si. Disparada automaticamente
+  pelo `IndicadorConectividade` no evento `online` e também ao montar (caso
+  o app tenha sido reaberto já com internet e ainda haja pendência de uma
+  sessão offline anterior) — um `sincronizado > 0` chama `router.refresh()`
+  pra tela atual parar de mostrar o dado antigo.
+- **O indicador de pendências não tem como ouvir mudança de IndexedDB
+  nativamente** — `enfileirar`/`removerDaFila`/`registrarFalhaNaFila`
+  disparam um `Event` simples no `window` (`ouvirMudancasNaFila`) só pra
+  avisar `IndicadorConectividade` de que a contagem mudou, sem precisar de
+  polling nem de uma lib de estado.
+- **Testado derrubando o processo do servidor de verdade** (mesmo motivo
+  da etapa 1: `context.setOffline()` do Playwright não afeta o `fetch` da
+  Server Action de forma confiável) — submissão offline não quebra mais a
+  tela, o item aparece na fila em IndexedDB, e religando o servidor +
+  recarregando a página (simulando o técnico reabrindo o app com sinal de
+  volta) sincroniza e o dado aparece de verdade no Postgres. Cobre
+  adicionar e remover.
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

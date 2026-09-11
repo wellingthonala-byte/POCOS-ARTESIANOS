@@ -1,21 +1,17 @@
 import type { CamadaPerfil } from "@/lib/perfil/litologico";
 import type { DadosConstrutivo } from "@/lib/perfil/construtivo";
+import { abrirBanco, suportado, TABELA_POCOS } from "./banco";
 
 // Espelho local (IndexedDB) dos poços já abertos com internet, para
-// consulta offline (Fase 5, etapa 2). É só leitura: lançar/editar dado
-// ainda exige conexão (isso é a próxima etapa, a fila de sincronização) —
-// aqui a única escrita é o próprio espelhamento, disparado pelas telas
-// normais quando carregam com sucesso.
+// consulta offline (Fase 5, etapa 2). É só leitura para o poço em si — a
+// escrita de dado novo (etapa 3) passa pela fila de sincronização
+// (fila-sincronizacao.ts), não por aqui.
 //
 // Um mesmo poço pode ser gravado de duas formas — resumo (pela lista de
 // poços) ou detalhe completo (pela tela do poço) — por isso `salvarPocoOffline`
 // faz merge com o que já existe em vez de sobrescrever, pra visitar a lista
 // depois de já ter visto o detalhe não apagar litologia/construtivo já
 // espelhados.
-
-const NOME_BANCO = "pocos-offline";
-const VERSAO_BANCO = 1;
-const NOME_TABELA = "pocos";
 
 export type PocoOffline = {
   id: string;
@@ -32,24 +28,6 @@ export type PocoOffline = {
   profundidadeTotal?: number;
 };
 
-function suportado(): boolean {
-  return typeof window !== "undefined" && "indexedDB" in window;
-}
-
-function abrirBanco(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const pedido = indexedDB.open(NOME_BANCO, VERSAO_BANCO);
-    pedido.onupgradeneeded = () => {
-      const banco = pedido.result;
-      if (!banco.objectStoreNames.contains(NOME_TABELA)) {
-        banco.createObjectStore(NOME_TABELA, { keyPath: "id" });
-      }
-    };
-    pedido.onsuccess = () => resolve(pedido.result);
-    pedido.onerror = () => reject(pedido.error);
-  });
-}
-
 export async function salvarPocoOffline(
   dados: Omit<PocoOffline, "atualizadoEmLocal">
 ): Promise<void> {
@@ -57,8 +35,8 @@ export async function salvarPocoOffline(
   const banco = await abrirBanco();
 
   await new Promise<void>((resolve, reject) => {
-    const transacao = banco.transaction(NOME_TABELA, "readwrite");
-    const tabela = transacao.objectStore(NOME_TABELA);
+    const transacao = banco.transaction(TABELA_POCOS, "readwrite");
+    const tabela = transacao.objectStore(TABELA_POCOS);
     const pedidoAtual = tabela.get(dados.id);
 
     pedidoAtual.onsuccess = () => {
@@ -86,8 +64,8 @@ export async function buscarPocoOffline(
   const banco = await abrirBanco();
 
   const resultado = await new Promise<PocoOffline | undefined>((resolve, reject) => {
-    const transacao = banco.transaction(NOME_TABELA, "readonly");
-    const pedido = transacao.objectStore(NOME_TABELA).get(id);
+    const transacao = banco.transaction(TABELA_POCOS, "readonly");
+    const pedido = transacao.objectStore(TABELA_POCOS).get(id);
     pedido.onsuccess = () => resolve(pedido.result);
     pedido.onerror = () => reject(pedido.error);
   });
@@ -101,8 +79,8 @@ export async function listarPocosOffline(): Promise<PocoOffline[]> {
   const banco = await abrirBanco();
 
   const resultado = await new Promise<PocoOffline[]>((resolve, reject) => {
-    const transacao = banco.transaction(NOME_TABELA, "readonly");
-    const pedido = transacao.objectStore(NOME_TABELA).getAll();
+    const transacao = banco.transaction(TABELA_POCOS, "readonly");
+    const pedido = transacao.objectStore(TABELA_POCOS).getAll();
     pedido.onsuccess = () => resolve(pedido.result ?? []);
     pedido.onerror = () => reject(pedido.error);
   });

@@ -35,7 +35,7 @@ export const SCRIPT_OFFLINE = `
 
   function abrirBanco() {
     return new Promise(function (resolve, reject) {
-      var pedido = indexedDB.open('pocos-offline', 1);
+      var pedido = indexedDB.open('pocos-offline', 2);
       pedido.onsuccess = function () { resolve(pedido.result); };
       pedido.onerror = function () { reject(pedido.error); };
     });

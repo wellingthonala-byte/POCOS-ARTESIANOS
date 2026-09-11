@@ -62,7 +62,8 @@ export function FormularioLitologia({
   } = useListaTrechos(
     adicionarCamadaLitologica.bind(null, pocoId),
     removerUltimaCamadaLitologica.bind(null, pocoId),
-    {}
+    {},
+    { pocoId, tipoAdicionar: "litologia.adicionar", tipoRemover: "litologia.remover" }
   );
 
   return (
@@ -104,6 +105,12 @@ export function FormularioLitologia({
         {estadoRemover.erro && (
           <p className="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
             {estadoRemover.erro}
+          </p>
+        )}
+        {estadoRemover.pendente && (
+          <p className="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+            Sem conexão — a remoção foi guardada neste aparelho e será
+            enviada quando a internet voltar.
           </p>
         )}
       </div>
@@ -153,6 +160,12 @@ export function FormularioLitologia({
         {estadoAdicionar.erro && (
           <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
             {estadoAdicionar.erro}
+          </p>
+        )}
+        {estadoAdicionar.pendente && (
+          <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+            Sem conexão — a camada foi guardada neste aparelho e será
+            enviada quando a internet voltar.
           </p>
         )}
 

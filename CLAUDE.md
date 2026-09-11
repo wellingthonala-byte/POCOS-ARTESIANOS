@@ -122,6 +122,7 @@ src/
         relatorio/
           pdf/route.ts          # GET → PDF do relatório (Fase 3)
           excel/route.ts        # GET → planilha Excel do relatório (Fase 3)
+    offline/page.tsx      # Fallback do service worker quando não há rede nem cache (Fase 5)
   components/
     navegacao-principal.tsx  # Cabeçalho com links para Poços/Obras/Clientes/Configurações
     clientes/
@@ -130,6 +131,9 @@ src/
     pocos/               # Componentes de tela específicos de poço
       navegacao-etapas.tsx  # Barra de navegação entre as 5 etapas do poço
       perfil-poco.tsx       # Componente cliente: desenho do perfil + controle de escala
+    pwa/                  # Fase 5
+      registrar-service-worker.tsx  # Só o efeito de registrar o service worker
+      indicador-conectividade.tsx    # Indicador permanente online/offline no cabeçalho
   hooks/
     usar-rascunho-formulario.ts  # Autosave de formulário em localStorage
     usar-lista-trechos.ts        # Wiring comum às listas de trechos encadeados
@@ -154,6 +158,11 @@ src/
       mapear-dados.ts        # Poço do Prisma (campos Decimal) → formato plano do desenho —
                              # única fonte usada pela tela e pelo relatório em PDF
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
+public/
+  manifest.json           # Manifest da PWA (Fase 5)
+  service-worker.js        # Service worker do app shell (Fase 5) — precisa ficar na raiz
+                           # pública para o escopo de registro cobrir o site inteiro
+  icons/                  # Ícones da PWA (192, 512, maskable, apple-touch-icon)
 prisma/
   schema.prisma          # Schema do banco (entidades da Fase 1)
   seed.ts                # Seed de desenvolvimento (cliente, obra, 2 poços completos)
@@ -292,7 +301,44 @@ quando o poço já tiver um teste simples lançado por aqui.
   partir ao meio; a altura sobra livre para o Chromium paginar
   normalmente quando o poço for muito profundo.
 
-## Fases do projeto
+### Offline (PWA) — decisões da Fase 5
+
+A Fase 5 tem várias entregas (ver plano, seção 7); a primeira etapa
+implementada é só a base de app shell instalável — IndexedDB e fila de
+sincronização ficam para as próximas etapas.
+
+- **Etapa 1 — app shell instalável (`public/manifest.json`,
+  `public/service-worker.js`)**: service worker escrito à mão (sem
+  `next-pwa` ou lib parecida) — o projeto já tinha o precedente de preferir
+  solução direta a dependência externa (ver o motivo do `template.ts` sem
+  JSX), e libs de PWA baseadas em Workbox/webpack têm histórico de atrito
+  com o App Router + Turbopack do Next 15.
+- **O service worker NUNCA cacheia página com dado de poço**: só entram no
+  cache os arquivos verdadeiramente estáticos (`_next/static/*`,
+  `/icons/*`, `/manifest.json`) e a página `/offline` — cachear uma página
+  renderizada no servidor (ex.: `/pocos/[id]`) arriscaria mostrar dado
+  desatualizado pro técnico em campo achando que é o estado atual. Ver
+  `ehAssetEstatico` em `service-worker.js`. Estratégia por tipo de
+  requisição: navegação de página é sempre rede-primeiro (cai pro cache/
+  `/offline` só se a rede falhar de verdade); asset estático é
+  cache-first.
+- **`IndicadorConectividade` usa `navigator.onLine`/eventos
+  `online`/`offline`, não "o servidor respondeu"**: é a limitação da API do
+  navegador — ela reflete a interface de rede do aparelho (Wi-Fi/dados
+  ligados ou não), não se o servidor da aplicação está de pé. Para o caso
+  de uso real (técnico sem sinal na obra) é exatamente o que se quer medir;
+  não confundir com "a última requisição teve sucesso" (isso é outra
+  informação, que só a fila de sincronização de uma etapa futura vai
+  cobrir). Renderiza "online" por padrão até montar no cliente (efeito
+  colateral do SSR não ter `navigator`), pra não divergir do HTML do
+  servidor.
+- **Teste de fallback offline não usa `context.setOffline()` do
+  Playwright**: essa API do Playwright não é confiável para testar o
+  `fetch` feito de dentro do `fetch` handler do service worker — o
+  navegador continua completando a requisição normalmente nesse cenário de
+  teste (parece um request de um worker não seguir a emulação de rede da
+  página no Chromium/CDP). O teste que funciona de verdade é matar o
+  processo do servidor e navegar para uma rota ainda não cacheada.
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

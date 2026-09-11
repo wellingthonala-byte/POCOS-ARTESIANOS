@@ -113,7 +113,7 @@ src/
       acoes.ts           # Server actions de poço ("use server")
       novo/page.tsx      # Criação — etapa 1 (identificação e locação)
       [id]/
-        page.tsx                # Detalhe do poço + perfil litológico + baixar relatório
+        page.tsx                # Detalhe do poço + desenho do perfil + baixar relatório
         identificacao/page.tsx  # Etapa 1 (editar poço existente)
         perfuracao/page.tsx     # Etapa 2
         litologia/page.tsx      # Etapa 3
@@ -151,6 +151,8 @@ src/
       construtivo.ts        # Gera o markup da coluna construtiva (furo, revestimento,
                              # cimentação, pré-filtro, níveis)
       perfil.ts             # Orquestra as duas colunas + régua num único SVG (`gerarSvgPerfilPoco`)
+      mapear-dados.ts        # Poço do Prisma (campos Decimal) → formato plano do desenho —
+                             # única fonte usada pela tela e pelo relatório em PDF
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
 prisma/
   schema.prisma          # Schema do banco (entidades da Fase 1)
@@ -278,6 +280,17 @@ quando o poço já tiver um teste simples lançado por aqui.
   `litologico.ts` foi calibrado com folga para a fonte/tamanho usados — se
   mudar a fonte do rótulo, reveja essa constante (um rótulo comprido
   vazando para fora do SVG à esquerda é o sintoma).
+- **O desenho embutido no PDF (`template.ts`, seção "Desenho do perfil")
+  reaproveita a mesma `gerarSvgPerfilPoco` da tela**, via `mapear-dados.ts`
+  (extraído para não duplicar a conversão Decimal→número entre
+  `/pocos/[id]/page.tsx` e o relatório). Diferença única: no PDF não há
+  ajuste manual de escala nem rolagem horizontal, então o `<svg>` raiz é
+  pós-processado para `width="100%" height="auto"` (mantendo o `viewBox`
+  original) — ele escala proporcionalmente à largura impressa da página,
+  não importa a profundidade do poço. A seção começa em página nova
+  (`break-before: page`) por ser um bloco visual único que não faz sentido
+  partir ao meio; a altura sobra livre para o Chromium paginar
+  normalmente quando o poço for muito profundo.
 
 ## Fases do projeto
 

@@ -5,6 +5,9 @@ import {
   rotulosTipoRevestimento,
 } from "@/lib/rotulos";
 import { escaparHtml } from "@/lib/escapar-html";
+import { gerarSvgPerfilPoco } from "@/lib/perfil/perfil";
+import { calcularEscalaAutomatica } from "@/lib/perfil/escala";
+import { mapearDadosParaPerfil, temDadosDePerfil } from "@/lib/perfil/mapear-dados";
 
 // Next.js proíbe importar react-dom/server no grafo de módulos de um Route
 // Handler ("renderize como Server Component em vez disso"). Como este HTML
@@ -32,6 +35,19 @@ function formatarDecimal(
 function campoDado(rotulo: string, valor: string | null | undefined): string {
   if (!valor) return "";
   return `<div class="campo"><span>${escaparHtml(rotulo)}</span><span>${escaparHtml(valor)}</span></div>`;
+}
+
+// Na tela, o SVG usa largura/altura fixas em pixel (o usuário ajusta a
+// escala e rola horizontalmente se precisar). No PDF não há rolagem — o
+// desenho precisa caber na largura da página, então troca-se para
+// width="100%"/height="auto" no <svg> raiz (mantendo o viewBox original)
+// para escalar proporcionalmente à largura impressa, por maior que seja a
+// profundidade do poço.
+function tornarSvgResponsivo(svg: string): string {
+  return svg.replace(
+    /^(<svg[^>]*?)\swidth="[^"]*"\sheight="[^"]*"/,
+    '$1 width="100%" height="auto"'
+  );
 }
 
 function renderizarCorpoRelatorio(dados: DadosRelatorio): string {
@@ -207,6 +223,20 @@ function renderizarCorpoRelatorio(dados: DadosRelatorio): string {
     </section>`
     : "";
 
+  const dadosPerfil = mapearDadosParaPerfil(poco);
+  const desenhoPerfil = temDadosDePerfil(dadosPerfil)
+    ? `
+    <section class="perfil">
+      <h2>Desenho do perfil</h2>
+      ${tornarSvgResponsivo(
+        gerarSvgPerfilPoco({
+          ...dadosPerfil,
+          pixelsPorMetro: calcularEscalaAutomatica(dadosPerfil.profundidadeTotal),
+        })
+      )}
+    </section>`
+    : "";
+
   const niveisEVazao = testeVazao
     ? `
     <section>
@@ -252,6 +282,7 @@ function renderizarCorpoRelatorio(dados: DadosRelatorio): string {
     capa,
     dadosCadastrais,
     dadosPerfuracao,
+    desenhoPerfil,
     litologia,
     construtivo,
     niveisEVazao,
@@ -283,6 +314,8 @@ const estilos = `
   .campo span:first-child { color: #555; }
   .campo span:last-child { font-weight: 600; text-align: right; }
   .diametros-trecho { font-size: 10px; color: #333; }
+  .perfil { break-before: page; }
+  .perfil svg { display: block; margin: 0 auto; }
   .capa {
     break-after: page;
     text-align: center;

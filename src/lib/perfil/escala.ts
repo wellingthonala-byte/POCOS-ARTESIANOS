@@ -109,6 +109,22 @@ export function profundidadeParaY(
   return profundidade < primeiro.profundidadeInicial ? primeiro.y0 : ultimo.y1;
 }
 
+const ALTURA_ALVO_PADRAO = 700;
+const PIXELS_POR_METRO_MINIMO = 1;
+const PIXELS_POR_METRO_MAXIMO = 60;
+
+// Compartilhada entre a tela (escala inicial antes do ajuste manual) e o
+// relatório em PDF (onde não há ajuste manual — a largura do desenho é
+// sempre proporcional à página, então só a proporção altura/largura importa).
+export function calcularEscalaAutomatica(profundidadeTotal: number): number {
+  if (profundidadeTotal <= 0) return PIXELS_POR_METRO_MINIMO;
+  const escala = ALTURA_ALVO_PADRAO / profundidadeTotal;
+  return Math.min(
+    PIXELS_POR_METRO_MAXIMO,
+    Math.max(PIXELS_POR_METRO_MINIMO, Math.round(escala * 10) / 10)
+  );
+}
+
 export function calcularIntervaloRegua(profundidadeTotal: number): number {
   return profundidadeTotal <= 60 ? 5 : 10;
 }

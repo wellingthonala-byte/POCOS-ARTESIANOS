@@ -2,21 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { gerarSvgPerfilPoco } from "@/lib/perfil/perfil";
+import { calcularEscalaAutomatica } from "@/lib/perfil/escala";
 import type { CamadaPerfil } from "@/lib/perfil/litologico";
 import type { DadosConstrutivo } from "@/lib/perfil/construtivo";
 
-const ALTURA_ALVO_PADRAO = 700;
 const PIXELS_POR_METRO_MINIMO = 1;
 const PIXELS_POR_METRO_MAXIMO = 60;
-
-function calcularEscalaAutomatica(profundidadeTotal: number): number {
-  if (profundidadeTotal <= 0) return PIXELS_POR_METRO_MINIMO;
-  const escala = ALTURA_ALVO_PADRAO / profundidadeTotal;
-  return Math.min(
-    PIXELS_POR_METRO_MAXIMO,
-    Math.max(PIXELS_POR_METRO_MINIMO, Math.round(escala * 10) / 10)
-  );
-}
 
 export function PerfilPoco({
   camadas,

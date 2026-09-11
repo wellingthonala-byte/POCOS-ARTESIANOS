@@ -80,7 +80,7 @@ export function FormularioIdentificacaoLocacao({
   useEffect(() => {
     if (estado.sucesso) {
       limparRascunho();
-      router.push("/pocos");
+      router.push(estado.pocoId ? `/pocos/${estado.pocoId}/perfuracao` : "/pocos");
       return;
     }
     if (estado.erro) {

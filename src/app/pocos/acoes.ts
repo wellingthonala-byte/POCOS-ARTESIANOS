@@ -2,13 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
-import { StatusPoco, MetodoObtencaoCoordenada } from "@/generated/prisma/enums";
+import {
+  StatusPoco,
+  MetodoObtencaoCoordenada,
+  MetodoPerfuracao,
+} from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { obterUsuarioAtualId } from "@/lib/usuario-atual";
 
 export type EstadoFormularioPoco = {
   erro?: string;
   sucesso?: boolean;
+  pocoId?: string;
 };
 
 function validarEnum<T extends string>(
@@ -78,13 +83,12 @@ export async function criarPoco(
   try {
     const dados = lerCamposIdentificacaoLocacao(formData);
     const criadoPorId = await obterUsuarioAtualId();
-    await prisma.poco.create({ data: { ...dados, criadoPorId } });
+    const poco = await prisma.poco.create({ data: { ...dados, criadoPorId } });
+    revalidatePath("/pocos");
+    return { sucesso: true, pocoId: poco.id };
   } catch (erro) {
     return tratarErro(erro);
   }
-
-  revalidatePath("/pocos");
-  return { sucesso: true };
 }
 
 export async function atualizarIdentificacaoLocacao(
@@ -95,10 +99,58 @@ export async function atualizarIdentificacaoLocacao(
   try {
     const dados = lerCamposIdentificacaoLocacao(formData);
     await prisma.poco.update({ where: { id: pocoId }, data: dados });
+    revalidatePath("/pocos");
+    return { sucesso: true, pocoId };
   } catch (erro) {
     return tratarErro(erro);
   }
+}
 
-  revalidatePath("/pocos");
-  return { sucesso: true };
+function lerCamposPerfuracao(formData: FormData) {
+  const metodoPerfuracao = String(formData.get("metodoPerfuracao") ?? "").trim();
+  const dataInicioPerfuracao = String(formData.get("dataInicioPerfuracao") ?? "").trim();
+  const dataFimPerfuracao = String(formData.get("dataFimPerfuracao") ?? "").trim();
+  const profundidadeFinal = String(formData.get("profundidadeFinal") ?? "")
+    .trim()
+    .replace(",", ".");
+  const numeroArt = String(formData.get("numeroArt") ?? "").trim();
+
+  if (dataInicioPerfuracao && dataFimPerfuracao) {
+    if (new Date(dataFimPerfuracao) < new Date(dataInicioPerfuracao)) {
+      throw new Error("A data de fim não pode ser anterior à data de início.");
+    }
+  }
+
+  let profundidadeFinalNumero: number | null = null;
+  if (profundidadeFinal) {
+    profundidadeFinalNumero = Number(profundidadeFinal);
+    if (Number.isNaN(profundidadeFinalNumero) || profundidadeFinalNumero <= 0) {
+      throw new Error("Profundidade final inválida.");
+    }
+  }
+
+  return {
+    metodoPerfuracao: metodoPerfuracao
+      ? validarEnum(Object.values(MetodoPerfuracao), metodoPerfuracao, "Método de perfuração")
+      : null,
+    dataInicioPerfuracao: dataInicioPerfuracao ? new Date(dataInicioPerfuracao) : null,
+    dataFimPerfuracao: dataFimPerfuracao ? new Date(dataFimPerfuracao) : null,
+    profundidadeFinal: profundidadeFinalNumero,
+    numeroArt: numeroArt || null,
+  };
+}
+
+export async function atualizarPerfuracao(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  formData: FormData
+): Promise<EstadoFormularioPoco> {
+  try {
+    const dados = lerCamposPerfuracao(formData);
+    await prisma.poco.update({ where: { id: pocoId }, data: dados });
+    revalidatePath("/pocos");
+    return { sucesso: true, pocoId };
+  } catch (erro) {
+    return tratarErro(erro);
+  }
 }

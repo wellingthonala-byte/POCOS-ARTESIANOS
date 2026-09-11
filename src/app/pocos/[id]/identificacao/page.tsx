@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { FormularioIdentificacaoLocacao } from "@/components/pocos/formulario-identificacao-locacao";
+import { NavegacaoEtapas } from "@/components/pocos/navegacao-etapas";
 import { atualizarIdentificacaoLocacao } from "@/app/pocos/acoes";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditarPoco({
+export default async function EtapaIdentificacao({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -27,12 +28,8 @@ export default async function EditarPoco({
 
   return (
     <main className="mx-auto max-w-2xl p-4 pb-24">
-      <h1 className="mb-1 text-2xl font-bold">
-        Editar poço {poco.identificacao}
-      </h1>
-      <p className="mb-6 text-gray-500">
-        Etapa 1 de 5 — Identificação e locação
-      </p>
+      <h1 className="mb-1 text-2xl font-bold">Poço {poco.identificacao}</h1>
+      <NavegacaoEtapas pocoId={poco.id} etapaAtual="identificacao" />
       <FormularioIdentificacaoLocacao
         obras={obras.map((obra) => ({
           id: obra.id,

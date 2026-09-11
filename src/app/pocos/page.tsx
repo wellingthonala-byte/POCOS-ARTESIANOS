@@ -37,7 +37,7 @@ export default async function ListaDePocos() {
           {pocos.map((poco) => (
             <li key={poco.id}>
               <Link
-                href={`/pocos/${poco.id}/editar`}
+                href={`/pocos/${poco.id}/identificacao`}
                 className="block rounded-lg border border-gray-200 p-4 active:bg-gray-50"
               >
                 <div className="flex items-center justify-between gap-2">

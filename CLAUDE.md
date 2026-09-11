@@ -108,11 +108,14 @@ src/
   app/
     pocos/               # Lista de poços, criação e edição (Fase 2)
       acoes.ts           # Server actions de poço ("use server")
-      novo/page.tsx
-      [id]/editar/page.tsx
+      novo/page.tsx      # Criação — etapa 1 (identificação e locação)
+      [id]/
+        identificacao/page.tsx  # Etapa 1 (editar poço existente)
+        perfuracao/page.tsx     # Etapa 2
       page.tsx
   components/
     pocos/               # Componentes de tela específicos de poço
+      navegacao-etapas.tsx  # Barra de navegação entre as 5 etapas do poço
   hooks/
     usar-rascunho-formulario.ts  # Autosave de formulário em localStorage
   lib/
@@ -140,12 +143,19 @@ esse placeholder do que o necessário, para facilitar essa troca depois.
 
 ### Rascunho de formulário (autosave)
 
-O requisito de "salvar rascunho a cada campo alterado" está implementado via
-`useRascunhoFormulario` (localStorage, com debounce), não via banco de
-dados: os campos obrigatórios do poço não aceitam nulo, então um poço
-parcialmente preenchido não pode ser persistido antes de todas as etapas
-existirem. Isso é uma solução temporária — a Fase 5 (offline com IndexedDB)
-deve revisitar esse mecanismo.
+O requisito de "salvar rascunho a cada campo alterado" tem duas
+implementações, dependendo se os campos da etapa aceitam nulo:
+
+- **Etapa 1 (identificação e locação)**: campos obrigatórios (não aceitam
+  nulo), então um poço parcialmente preenchido não pode ser persistido
+  antes de existir no banco. Usa `useRascunhoFormulario` (localStorage,
+  com debounce) como solução temporária — a Fase 5 (offline com IndexedDB)
+  deve revisitar esse mecanismo.
+- **Etapa 2 em diante (perfuração, litologia, ...)**: como o poço já existe
+  e os campos são opcionais, o autosave grava direto no banco a cada
+  alteração (debounce de 800ms via Server Action, sem passar por
+  localStorage). Ver `FormularioPerfuracao` como referência para as
+  próximas etapas.
 
 ## Fases do projeto
 

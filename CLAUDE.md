@@ -106,6 +106,8 @@ calcular o diff de cada migration.
 ```
 src/
   app/
+    clientes/            # CRUD de cliente (Fase 2)
+    obras/                # CRUD de obra (Fase 2)
     pocos/               # Lista de poços, criação e edição (Fase 2)
       acoes.ts           # Server actions de poço ("use server")
       novo/page.tsx      # Criação — etapa 1 (identificação e locação)
@@ -117,6 +119,9 @@ src/
         niveis-vazao/page.tsx   # Etapa 5 (resumo simples do teste de vazão)
       page.tsx
   components/
+    navegacao-principal.tsx  # Cabeçalho com links para Poços/Obras/Clientes
+    clientes/
+    obras/
     pocos/               # Componentes de tela específicos de poço
       navegacao-etapas.tsx  # Barra de navegação entre as 5 etapas do poço
   hooks/

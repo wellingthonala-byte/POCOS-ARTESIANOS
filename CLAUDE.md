@@ -154,6 +154,7 @@ src/
       lista-parametros.tsx           # Adiciona/remove parâmetro, destaca fora do VMP
       formulario-anexo.tsx            # Upload de anexo — arquivo, tipo, legenda (Fase 6)
       lista-anexos.tsx                 # Miniatura/ícone por anexo + remover
+      formulario-excluir-poco.tsx       # Exclusão lógica do poço (fora das fases numeradas)
     pwa/                  # Fase 5
       registrar-service-worker.tsx  # Só o efeito de registrar o service worker
       indicador-conectividade.tsx    # Indicador permanente online/offline no cabeçalho
@@ -725,6 +726,69 @@ sincronização ficam para as próximas etapas.
   seção "Fotos" antes da assinatura — croqui/ART/laudo (PDF) corretamente
   de fora — e que remover um anexo faz sumir da lista, marca
   `excluido_em` no banco e mantém o arquivo físico intacto em disco.
+
+### Exclusão de cliente/obra/poço — fora das fases numeradas
+
+Cliente, obra e poço só tinham criar/editar pela interface até aqui — a
+exclusão foi adicionada depois de o plano numerado (Fases 1–6) já estar
+completo, então não está descrita em nenhuma fase acima.
+
+- **Bloqueada se houver dependente ativo, em vez de cascatear**:
+  `excluirCliente` (`clientes/acoes.ts`) recusa se houver `obra` com
+  `excluidoEm: null` apontando pra ele; `excluirObra` (`obras/acoes.ts`)
+  recusa se houver `poco` ativo. A mensagem já informa a contagem ("há N
+  obra(s) vinculada(s)"). Decidido em vez de cascatear a exclusão pros
+  filhos porque poço carrega dado técnico de campo (litologia, testes,
+  análises, anexos) — cascatear esconderia isso sem aviso nenhum só porque
+  alguém excluiu o cliente. O preço é um passo a mais (excluir de baixo
+  pra cima: poço → obra → cliente), mas evita perder visibilidade de dado
+  de poço por acidente.
+- **`excluirPoco` (`pocos/acoes.ts`) não bloqueia por dependente**: poço é
+  a ponta da hierarquia, e toda rota abaixo dele
+  (`/pocos/[id]/litologia`, `/analises`, `/anexos` etc.) já exige
+  `excluidoEm: null` no próprio poço — excluir o poço já torna tudo isso
+  inacessível pela tela, sem precisar apagar nem cascatear exclusão em
+  cada tabela filha.
+- **Sem tela de "editar" única pra poço**: cliente e obra têm uma página
+  `/editar` (onde o botão de excluir foi colocado, junto do formulário,
+  igual ao padrão já usado em `FormularioAnalise`). Poço não — a
+  "identificação" é só a etapa 1 de um formulário sequencial já bastante
+  instrumentado (autosave, detecção de conflito, fila offline), e mexer
+  nele só pra encaixar um botão de exclusão arriscava esses mecanismos.
+  Por isso `FormularioExcluirPoco` é um componente à parte, colocado na
+  página de detalhe do poço (`/pocos/[id]`, o "hub" com os links pras
+  outras telas) — não a mesma decisão de cliente/obra, mas o lugar que
+  faz sentido pra esse formulário específico.
+- **Bug real pego no primeiro teste — o redirect pós-exclusão não pode
+  vir do cliente**: a primeira versão de cada exclusão devolvia
+  `{sucesso: true}` e a tela fazia `router.push` num `useEffect` ao ver
+  `estado.sucesso`, igual ao padrão usado em toda parte (`FormularioAnalise`,
+  os formulários de identificação/perfuração etc.). Não funcionou:
+  excluir de verdade e testar mostrou a página atual virando 404 em vez
+  de redirecionar. Causa: chamar uma Server Action a partir de um
+  componente cliente sempre provoca um refresh da própria rota atual
+  como parte do commit da action — e como `/clientes/[id]/editar`,
+  `/obras/[id]/editar` e `/pocos/[id]` também exigem `excluidoEm: null`
+  pra existir, esse refresh automático cai em `notFound()` e desmonta o
+  componente ANTES do `useEffect` cliente conseguir reagir a
+  `estado.sucesso` — o `router.push` nunca chega a rodar. A correção foi
+  redirecionar de dentro da própria action, com `redirect()` do
+  `next/navigation` (chamado FORA do `try/catch`, já que `redirect`
+  funciona lançando uma exceção especial que o `catch` genérico
+  engoliria como erro comum) — isso troca a rota antes que o refresh
+  automático tenha chance de cair em 404. Como consequência, essas três
+  actions de exclusão nunca devolvem `{sucesso: true}` de verdade (só
+  `{erro}` no caminho de bloqueio); os componentes cliente
+  (`ExcluirCliente`, `ExcluirObra`, `FormularioExcluirPoco`) não têm
+  `useEffect`/`router.push` nenhum, só mostram `estado.erro`.
+- **Testado criando cliente → obra → poço de teste pela própria
+  interface e excluindo de baixo pra cima**: excluir o cliente com a obra
+  ainda vinculada foi bloqueado com a mensagem certa; excluir a obra com
+  o poço ainda vinculado também; excluir o poço funcionou e voltou pra
+  `/pocos`; com o poço já excluído, excluir a obra funcionou e voltou pra
+  `/obras`; com a obra já excluída, excluir o cliente funcionou e voltou
+  pra `/clientes`. Confirmado no banco que as três exclusões são lógicas
+  (`excluido_em` preenchido, registro continua existindo).
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

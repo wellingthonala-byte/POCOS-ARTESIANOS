@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import type { EstadoFormularioObra } from "@/app/obras/acoes";
+import { excluirObra, type EstadoFormularioObra } from "@/app/obras/acoes";
 
 const classeCampo =
   "min-h-11 w-full rounded-md border border-gray-300 px-3 text-base";
@@ -54,81 +54,122 @@ export function FormularioObra({
   const valores = { ...valoresPadrao, ...valoresIniciais };
 
   return (
-    <form
-      key={versaoFormulario}
-      action={executarAcao}
-      className="flex flex-col gap-5"
-    >
-      <Campo rotulo="Cliente" obrigatorio>
-        <select
-          name="clienteId"
-          defaultValue={valores.clienteId}
-          required
-          className={classeCampo}
-        >
-          <option value="" disabled>
-            Selecione o cliente
-          </option>
-          {clientes.map((cliente) => (
-            <option key={cliente.id} value={cliente.id}>
-              {cliente.nome}
+    <div className="flex flex-col gap-5">
+      <form
+        key={versaoFormulario}
+        action={executarAcao}
+        className="flex flex-col gap-5"
+      >
+        <Campo rotulo="Cliente" obrigatorio>
+          <select
+            name="clienteId"
+            defaultValue={valores.clienteId}
+            required
+            className={classeCampo}
+          >
+            <option value="" disabled>
+              Selecione o cliente
             </option>
-          ))}
-        </select>
-      </Campo>
+            {clientes.map((cliente) => (
+              <option key={cliente.id} value={cliente.id}>
+                {cliente.nome}
+              </option>
+            ))}
+          </select>
+        </Campo>
 
-      <Campo rotulo="Nome da obra" obrigatorio>
-        <input
-          name="nome"
-          defaultValue={valores.nome}
-          required
-          placeholder="Ex.: Captação de água — Sede"
-          className={classeCampo}
-        />
-      </Campo>
-
-      <Campo rotulo="Endereço">
-        <input
-          name="endereco"
-          defaultValue={valores.endereco}
-          className={classeCampo}
-        />
-      </Campo>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Campo rotulo="Município" obrigatorio>
+        <Campo rotulo="Nome da obra" obrigatorio>
           <input
-            name="municipio"
-            defaultValue={valores.municipio}
+            name="nome"
+            defaultValue={valores.nome}
             required
+            placeholder="Ex.: Captação de água — Sede"
             className={classeCampo}
           />
         </Campo>
-        <Campo rotulo="UF" obrigatorio>
+
+        <Campo rotulo="Endereço">
           <input
-            name="uf"
-            defaultValue={valores.uf}
-            required
-            maxLength={2}
+            name="endereco"
+            defaultValue={valores.endereco}
             className={classeCampo}
           />
         </Campo>
-      </div>
 
+        <div className="grid grid-cols-2 gap-3">
+          <Campo rotulo="Município" obrigatorio>
+            <input
+              name="municipio"
+              defaultValue={valores.municipio}
+              required
+              className={classeCampo}
+            />
+          </Campo>
+          <Campo rotulo="UF" obrigatorio>
+            <input
+              name="uf"
+              defaultValue={valores.uf}
+              required
+              maxLength={2}
+              className={classeCampo}
+            />
+          </Campo>
+        </div>
+
+        {estado.erro && (
+          <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+            {estado.erro}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={emAndamento}
+          className="min-h-11 rounded-md bg-blue-600 px-4 text-lg font-semibold text-white active:bg-blue-700 disabled:opacity-60"
+        >
+          {emAndamento ? "Salvando..." : "Salvar"}
+        </button>
+      </form>
+
+      {valoresIniciais?.id && <ExcluirObra obraId={valoresIniciais.id} />}
+    </div>
+  );
+}
+
+// Exclusão só faz sentido editando uma obra já existente (nunca na
+// criação) — form separado, renderizado condicionalmente, mesma
+// convenção de FormularioCliente. Sem sucesso a tratar aqui: quando dá
+// certo, a própria action redireciona pro servidor (ver excluirObra em
+// obras/acoes.ts) — só o erro de bloqueio (obra com poço vinculado) chega
+// de volta pra esse estado.
+function ExcluirObra({ obraId }: { obraId: string }) {
+  const acao = useMemo(() => excluirObra.bind(null, obraId), [obraId]);
+  const [estado, executarAcao, excluindo] = useActionState(acao, {});
+
+  return (
+    <div className="border-t border-gray-200 pt-4">
       {estado.erro && (
-        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+        <p className="mb-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
           {estado.erro}
         </p>
       )}
-
-      <button
-        type="submit"
-        disabled={emAndamento}
-        className="min-h-11 rounded-md bg-blue-600 px-4 text-lg font-semibold text-white active:bg-blue-700 disabled:opacity-60"
+      <form
+        action={executarAcao}
+        onSubmit={(evento) => {
+          if (!confirm("Excluir esta obra?")) {
+            evento.preventDefault();
+          }
+        }}
       >
-        {emAndamento ? "Salvando..." : "Salvar"}
-      </button>
-    </form>
+        <button
+          type="submit"
+          disabled={excluindo}
+          className="min-h-11 w-full rounded-md px-4 text-sm font-medium text-red-600 active:bg-red-50 disabled:opacity-60"
+        >
+          {excluindo ? "Excluindo..." : "Excluir obra"}
+        </button>
+      </form>
+    </div>
   );
 }
 

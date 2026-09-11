@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { TipoPessoa } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { obterUsuarioAtualId } from "@/lib/usuario-atual";
@@ -79,4 +80,45 @@ export async function atualizarCliente(
   } catch (erro) {
     return tratarErro(erro);
   }
+}
+
+// Exclusão lógica bloqueada se houver obra ativa vinculada — evita que uma
+// obra (e os poços dela) fique "órfã", apontando pra um cliente já
+// excluído, sem precisar cascatear a exclusão (dado de campo não se
+// apaga, e cascatear escondería poço com dado técnico sem aviso nenhum).
+export async function excluirCliente(
+  clienteId: string,
+  _estadoAnterior: EstadoFormularioCliente,
+  _formData: FormData
+): Promise<EstadoFormularioCliente> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    const obrasVinculadas = await prisma.obra.count({
+      where: { clienteId, excluidoEm: null },
+    });
+    if (obrasVinculadas > 0) {
+      throw new Error(
+        `Não é possível excluir: há ${obrasVinculadas} obra(s) vinculada(s) a este cliente.`
+      );
+    }
+    await prisma.cliente.update({
+      where: { id: clienteId },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return tratarErro(erro);
+  }
+
+  // redirect() fora do try/catch de propósito: ele funciona lançando uma
+  // exceção especial que o Next intercepta — cair dentro do catch faria
+  // tratarErro engolir isso como erro genérico. Redirecionar aqui (em vez
+  // de router.push no cliente ao ver `sucesso`) evita uma corrida real: a
+  // própria Server Action já provoca um refresh da rota atual, e como
+  // `/clientes/[id]/editar` também exige `excluidoEm: null`, esse refresh
+  // cai em notFound() ANTES do componente cliente conseguir reagir a
+  // `estado.sucesso` — o usuário via a tela de 404 em vez de ir pra lista
+  // (confirmado excluindo de verdade e vendo o redirecionamento falhar).
+  revalidatePath("/clientes");
+  redirect("/clientes");
 }

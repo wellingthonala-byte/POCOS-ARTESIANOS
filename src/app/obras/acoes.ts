@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obterUsuarioAtualId } from "@/lib/usuario-atual";
 
@@ -57,4 +58,40 @@ export async function atualizarObra(
   } catch (erro) {
     return tratarErro(erro);
   }
+}
+
+// Mesmo raciocínio de excluirCliente (clientes/acoes.ts): bloqueia se
+// houver poço ativo vinculado, em vez de cascatear a exclusão pro poço
+// (que carrega dado técnico de campo).
+export async function excluirObra(
+  obraId: string,
+  _estadoAnterior: EstadoFormularioObra,
+  _formData: FormData
+): Promise<EstadoFormularioObra> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    const pocosVinculados = await prisma.poco.count({
+      where: { obraId, excluidoEm: null },
+    });
+    if (pocosVinculados > 0) {
+      throw new Error(
+        `Não é possível excluir: há ${pocosVinculados} poço(s) vinculado(s) a esta obra.`
+      );
+    }
+    await prisma.obra.update({
+      where: { id: obraId },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return tratarErro(erro);
+  }
+
+  // redirect() fora do try/catch e no lugar de router.push no cliente —
+  // mesmo raciocínio de excluirCliente (clientes/acoes.ts): a própria
+  // Server Action provoca um refresh de `/obras/[id]/editar`, que também
+  // exige `excluidoEm: null` e cairia em notFound() antes do componente
+  // cliente reagir a `estado.sucesso`.
+  revalidatePath("/obras");
+  redirect("/obras");
 }

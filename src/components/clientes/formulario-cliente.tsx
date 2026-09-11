@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { TipoPessoa } from "@/generated/prisma/enums";
-import type { EstadoFormularioCliente } from "@/app/clientes/acoes";
+import { excluirCliente, type EstadoFormularioCliente } from "@/app/clientes/acoes";
 
 const classeCampo =
   "min-h-11 w-full rounded-md border border-gray-300 px-3 text-base";
@@ -57,98 +57,139 @@ export function FormularioCliente({
   const valores = { ...valoresPadrao, ...valoresIniciais };
 
   return (
-    <form
-      key={versaoFormulario}
-      action={executarAcao}
-      className="flex flex-col gap-5"
-    >
-      <Campo rotulo="Nome" obrigatorio>
-        <input
-          name="nome"
-          defaultValue={valores.nome}
-          required
-          className={classeCampo}
-        />
-      </Campo>
+    <div className="flex flex-col gap-5">
+      <form
+        key={versaoFormulario}
+        action={executarAcao}
+        className="flex flex-col gap-5"
+      >
+        <Campo rotulo="Nome" obrigatorio>
+          <input
+            name="nome"
+            defaultValue={valores.nome}
+            required
+            className={classeCampo}
+          />
+        </Campo>
 
-      <Campo rotulo="Tipo de pessoa">
-        <select
-          name="tipoPessoa"
-          defaultValue={valores.tipoPessoa}
-          className={classeCampo}
+        <Campo rotulo="Tipo de pessoa">
+          <select
+            name="tipoPessoa"
+            defaultValue={valores.tipoPessoa}
+            className={classeCampo}
+          >
+            <option value="fisica">Física</option>
+            <option value="juridica">Jurídica</option>
+          </select>
+        </Campo>
+
+        <Campo rotulo="CPF ou CNPJ" obrigatorio>
+          <input
+            name="documento"
+            defaultValue={valores.documento}
+            required
+            className={classeCampo}
+          />
+        </Campo>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Campo rotulo="Telefone">
+            <input
+              name="telefone"
+              defaultValue={valores.telefone}
+              className={classeCampo}
+            />
+          </Campo>
+          <Campo rotulo="E-mail">
+            <input
+              name="email"
+              type="email"
+              defaultValue={valores.email}
+              className={classeCampo}
+            />
+          </Campo>
+        </div>
+
+        <Campo rotulo="Endereço">
+          <input
+            name="endereco"
+            defaultValue={valores.endereco}
+            className={classeCampo}
+          />
+        </Campo>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Campo rotulo="Município">
+            <input
+              name="municipio"
+              defaultValue={valores.municipio}
+              className={classeCampo}
+            />
+          </Campo>
+          <Campo rotulo="UF">
+            <input
+              name="uf"
+              defaultValue={valores.uf}
+              maxLength={2}
+              className={classeCampo}
+            />
+          </Campo>
+        </div>
+
+        {estado.erro && (
+          <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+            {estado.erro}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={emAndamento}
+          className="min-h-11 rounded-md bg-blue-600 px-4 text-lg font-semibold text-white active:bg-blue-700 disabled:opacity-60"
         >
-          <option value="fisica">Física</option>
-          <option value="juridica">Jurídica</option>
-        </select>
-      </Campo>
+          {emAndamento ? "Salvando..." : "Salvar"}
+        </button>
+      </form>
 
-      <Campo rotulo="CPF ou CNPJ" obrigatorio>
-        <input
-          name="documento"
-          defaultValue={valores.documento}
-          required
-          className={classeCampo}
-        />
-      </Campo>
+      {valoresIniciais?.id && <ExcluirCliente clienteId={valoresIniciais.id} />}
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-2 gap-3">
-        <Campo rotulo="Telefone">
-          <input
-            name="telefone"
-            defaultValue={valores.telefone}
-            className={classeCampo}
-          />
-        </Campo>
-        <Campo rotulo="E-mail">
-          <input
-            name="email"
-            type="email"
-            defaultValue={valores.email}
-            className={classeCampo}
-          />
-        </Campo>
-      </div>
+// Exclusão só faz sentido editando um cliente já existente (nunca na
+// criação) — por isso é um form separado, renderizado condicionalmente,
+// não uma ação do form principal. Sem sucesso a tratar aqui: quando dá
+// certo, a própria action redireciona pro servidor (ver excluirCliente em
+// clientes/acoes.ts) — só o erro de bloqueio (cliente com obra vinculada)
+// chega de volta pra esse estado.
+function ExcluirCliente({ clienteId }: { clienteId: string }) {
+  const acao = useMemo(() => excluirCliente.bind(null, clienteId), [clienteId]);
+  const [estado, executarAcao, excluindo] = useActionState(acao, {});
 
-      <Campo rotulo="Endereço">
-        <input
-          name="endereco"
-          defaultValue={valores.endereco}
-          className={classeCampo}
-        />
-      </Campo>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Campo rotulo="Município">
-          <input
-            name="municipio"
-            defaultValue={valores.municipio}
-            className={classeCampo}
-          />
-        </Campo>
-        <Campo rotulo="UF">
-          <input
-            name="uf"
-            defaultValue={valores.uf}
-            maxLength={2}
-            className={classeCampo}
-          />
-        </Campo>
-      </div>
-
+  return (
+    <div className="border-t border-gray-200 pt-4">
       {estado.erro && (
-        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+        <p className="mb-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
           {estado.erro}
         </p>
       )}
-
-      <button
-        type="submit"
-        disabled={emAndamento}
-        className="min-h-11 rounded-md bg-blue-600 px-4 text-lg font-semibold text-white active:bg-blue-700 disabled:opacity-60"
+      <form
+        action={executarAcao}
+        onSubmit={(evento) => {
+          if (!confirm("Excluir este cliente?")) {
+            evento.preventDefault();
+          }
+        }}
       >
-        {emAndamento ? "Salvando..." : "Salvar"}
-      </button>
-    </form>
+        <button
+          type="submit"
+          disabled={excluindo}
+          className="min-h-11 w-full rounded-md px-4 text-sm font-medium text-red-600 active:bg-red-50 disabled:opacity-60"
+        >
+          {excluindo ? "Excluindo..." : "Excluir cliente"}
+        </button>
+      </form>
+    </div>
   );
 }
 

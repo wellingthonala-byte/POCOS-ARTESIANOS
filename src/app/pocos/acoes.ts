@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { Prisma } from "@/generated/prisma/client";
@@ -262,6 +263,36 @@ export async function atualizarIdentificacaoLocacao(
   } catch (erro) {
     return tratarErro(erro);
   }
+}
+
+// Sem bloqueio por dado dependente (diferente de excluirCliente/
+// excluirObra): poço é a ponta da hierarquia, e suas próprias rotas
+// (/pocos/[id]/...) já exigem `excluidoEm: null` — excluir o poço já torna
+// litologia/construtivo/teste de vazão/análises/anexos inacessíveis pela
+// tela, sem precisar apagar ou cascatear exclusão em cada tabela filha.
+export async function excluirPoco(
+  pocoId: string,
+  _estadoAnterior: EstadoFormularioPoco,
+  _formData: FormData
+): Promise<EstadoFormularioPoco> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    await prisma.poco.update({
+      where: { id: pocoId },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return tratarErro(erro);
+  }
+
+  // redirect() fora do try/catch e no lugar de router.push no cliente —
+  // mesmo raciocínio de excluirCliente/excluirObra: a própria Server
+  // Action provoca um refresh de `/pocos/[id]`, que também exige
+  // `excluidoEm: null` e cairia em notFound() antes do componente cliente
+  // reagir a `estado.sucesso`.
+  revalidatePath("/pocos");
+  redirect("/pocos");
 }
 
 function lerCamposPerfuracao(formData: FormData) {

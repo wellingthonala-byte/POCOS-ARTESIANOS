@@ -4,6 +4,7 @@ import { NavegacaoEtapas } from "@/components/pocos/navegacao-etapas";
 import { PerfilPoco } from "@/components/pocos/perfil-poco";
 import { mapearDadosParaPerfil, temDadosDePerfil } from "@/lib/perfil/mapear-dados";
 import { EspelharPocoOffline } from "@/components/pwa/espelhar-poco-offline";
+import { FormularioExcluirPoco } from "@/components/pocos/formulario-excluir-poco";
 import { rotulosStatusPoco, coresStatusPoco } from "@/lib/rotulos";
 
 export const dynamic = "force-dynamic";
@@ -139,6 +140,8 @@ export default async function DetalheDoPoco({
           Baixar planilha Excel
         </a>
       </div>
+
+      <FormularioExcluirPoco pocoId={poco.id} />
     </main>
   );
 }

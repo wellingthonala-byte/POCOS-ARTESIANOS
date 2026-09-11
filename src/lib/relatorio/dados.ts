@@ -39,6 +39,10 @@ export async function buscarDadosRelatorio(pocoId: string) {
           parametros: { where: { excluidoEm: null }, orderBy: { criadoEm: "asc" } },
         },
       },
+      anexos: {
+        where: { excluidoEm: null },
+        orderBy: { criadoEm: "asc" },
+      },
     },
   });
 

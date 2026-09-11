@@ -1,10 +1,58 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { caminhoArquivoAnexo, caminhoDiretorioAnexos } from "../src/lib/anexos/armazenamento";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
+
+// Conteúdo mínimo só pra existir fisicamente em uploads/ (não são fotos/PDFs
+// reais) — sem isso, o anexo do seed aponta pra um arquivo que nunca
+// existiu e a miniatura quebra na tela de anexos. Nome físico e URL seguem
+// a mesma convenção da action adicionarAnexo (pocos/acoes.ts): id do
+// próprio anexo, não o nome original do arquivo — ver
+// src/lib/anexos/armazenamento.ts.
+const IMAGEM_SEED = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64"
+);
+const PDF_SEED = Buffer.from(
+  "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\nxref\n0 4\n0000000000 65535 f \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n0\n%%EOF"
+);
+
+async function criarAnexoSeed(dados: {
+  pocoId: string;
+  analiseAguaId?: string;
+  tipo: "foto" | "croqui" | "art" | "laudo" | "outro";
+  nomeArquivo: string;
+  legenda?: string;
+  incluirNoRelatorio?: boolean;
+  criadoPorId: string;
+}) {
+  const id = randomUUID();
+  const extensao = dados.nomeArquivo.slice(dados.nomeArquivo.lastIndexOf("."));
+  const conteudo = extensao === ".pdf" ? PDF_SEED : IMAGEM_SEED;
+
+  await mkdir(caminhoDiretorioAnexos(dados.pocoId), { recursive: true });
+  await writeFile(caminhoArquivoAnexo(dados.pocoId, id, extensao), conteudo);
+
+  await prisma.anexo.create({
+    data: {
+      id,
+      pocoId: dados.pocoId,
+      analiseAguaId: dados.analiseAguaId,
+      tipo: dados.tipo,
+      arquivoUrl: `/pocos/${dados.pocoId}/anexos/${id}/arquivo`,
+      nomeArquivo: dados.nomeArquivo,
+      legenda: dados.legenda,
+      incluirNoRelatorio: dados.incluirNoRelatorio ?? false,
+      criadoPorId: dados.criadoPorId,
+    },
+  });
+}
 
 async function main() {
   await prisma.configuracao.create({
@@ -180,13 +228,33 @@ async function main() {
     ],
   });
 
-  await prisma.anexo.createMany({
-    data: [
-      { pocoId: pocoRaso.id, tipo: "foto", arquivoUrl: "/uploads/seed/pt-01/cabeca-do-poco.jpg", nomeArquivo: "cabeca-do-poco.jpg", legenda: "Cabeça do poço concluída, com tampa sanitária.", incluirNoRelatorio: true, criadoPorId: tecnico.id },
-      { pocoId: pocoRaso.id, tipo: "croqui", arquivoUrl: "/uploads/seed/pt-01/croqui-locacao.pdf", nomeArquivo: "croqui-locacao.pdf", legenda: "Croqui de acesso e locação do poço PT-01.", criadoPorId: tecnico.id },
-      { pocoId: pocoRaso.id, tipo: "art", arquivoUrl: "/uploads/seed/pt-01/art-mg20240012345.pdf", nomeArquivo: "art-mg20240012345.pdf", criadoPorId: responsavelTecnico.id },
-      { pocoId: pocoRaso.id, analiseAguaId: analiseAguaRaso.id, tipo: "laudo", arquivoUrl: "/uploads/seed/pt-01/laudo-fisico-quimico.pdf", nomeArquivo: "laudo-fisico-quimico.pdf", criadoPorId: responsavelTecnico.id },
-    ],
+  await criarAnexoSeed({
+    pocoId: pocoRaso.id,
+    tipo: "foto",
+    nomeArquivo: "cabeca-do-poco.jpg",
+    legenda: "Cabeça do poço concluída, com tampa sanitária.",
+    incluirNoRelatorio: true,
+    criadoPorId: tecnico.id,
+  });
+  await criarAnexoSeed({
+    pocoId: pocoRaso.id,
+    tipo: "croqui",
+    nomeArquivo: "croqui-locacao.pdf",
+    legenda: "Croqui de acesso e locação do poço PT-01.",
+    criadoPorId: tecnico.id,
+  });
+  await criarAnexoSeed({
+    pocoId: pocoRaso.id,
+    tipo: "art",
+    nomeArquivo: "art-mg20240012345.pdf",
+    criadoPorId: responsavelTecnico.id,
+  });
+  await criarAnexoSeed({
+    pocoId: pocoRaso.id,
+    analiseAguaId: analiseAguaRaso.id,
+    tipo: "laudo",
+    nomeArquivo: "laudo-fisico-quimico.pdf",
+    criadoPorId: responsavelTecnico.id,
   });
 
   // ---------------------------------------------------------------------
@@ -295,13 +363,33 @@ async function main() {
     ],
   });
 
-  await prisma.anexo.createMany({
-    data: [
-      { pocoId: pocoProfundo.id, tipo: "foto", arquivoUrl: "/uploads/seed/pt-02/cabeca-do-poco.jpg", nomeArquivo: "cabeca-do-poco.jpg", legenda: "Cabeça do poço concluída, com sistema de proteção sanitária.", incluirNoRelatorio: true, criadoPorId: tecnico.id },
-      { pocoId: pocoProfundo.id, tipo: "croqui", arquivoUrl: "/uploads/seed/pt-02/croqui-locacao.pdf", nomeArquivo: "croqui-locacao.pdf", legenda: "Croqui de acesso e locação do poço PT-02.", criadoPorId: tecnico.id },
-      { pocoId: pocoProfundo.id, tipo: "art", arquivoUrl: "/uploads/seed/pt-02/art-mg20240015678.pdf", nomeArquivo: "art-mg20240015678.pdf", criadoPorId: responsavelTecnico.id },
-      { pocoId: pocoProfundo.id, analiseAguaId: analiseAguaProfundo.id, tipo: "laudo", arquivoUrl: "/uploads/seed/pt-02/laudo-fisico-quimico.pdf", nomeArquivo: "laudo-fisico-quimico.pdf", criadoPorId: responsavelTecnico.id },
-    ],
+  await criarAnexoSeed({
+    pocoId: pocoProfundo.id,
+    tipo: "foto",
+    nomeArquivo: "cabeca-do-poco.jpg",
+    legenda: "Cabeça do poço concluída, com sistema de proteção sanitária.",
+    incluirNoRelatorio: true,
+    criadoPorId: tecnico.id,
+  });
+  await criarAnexoSeed({
+    pocoId: pocoProfundo.id,
+    tipo: "croqui",
+    nomeArquivo: "croqui-locacao.pdf",
+    legenda: "Croqui de acesso e locação do poço PT-02.",
+    criadoPorId: tecnico.id,
+  });
+  await criarAnexoSeed({
+    pocoId: pocoProfundo.id,
+    tipo: "art",
+    nomeArquivo: "art-mg20240015678.pdf",
+    criadoPorId: responsavelTecnico.id,
+  });
+  await criarAnexoSeed({
+    pocoId: pocoProfundo.id,
+    analiseAguaId: analiseAguaProfundo.id,
+    tipo: "laudo",
+    nomeArquivo: "laudo-fisico-quimico.pdf",
+    criadoPorId: responsavelTecnico.id,
   });
 
   console.log("Seed concluído:");

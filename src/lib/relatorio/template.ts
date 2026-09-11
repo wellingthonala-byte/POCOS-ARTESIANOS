@@ -8,6 +8,7 @@ import { escaparHtml } from "@/lib/escapar-html";
 import { gerarSvgPerfilPoco } from "@/lib/perfil/perfil";
 import { calcularEscalaAutomatica } from "@/lib/perfil/escala";
 import { mapearDadosParaPerfil, temDadosDePerfil } from "@/lib/perfil/mapear-dados";
+import { lerAnexoComoDataUri } from "@/lib/anexos/armazenamento";
 
 // Next.js proíbe importar react-dom/server no grafo de módulos de um Route
 // Handler ("renderize como Server Component em vez disso"). Como este HTML
@@ -50,7 +51,7 @@ function tornarSvgResponsivo(svg: string): string {
   );
 }
 
-function renderizarCorpoRelatorio(dados: DadosRelatorio): string {
+async function renderizarCorpoRelatorio(dados: DadosRelatorio): Promise<string> {
   const { poco, configuracao } = dados;
   const nomeEmpresa = configuracao?.nomeEmpresa ?? "";
   const testeVazao = poco.testesVazao[0] ?? null;
@@ -265,6 +266,34 @@ function renderizarCorpoRelatorio(dados: DadosRelatorio): string {
     </section>`
     : "";
 
+  // Só fotos (não ART/croqui/laudo) marcadas com incluirNoRelatorio entram
+  // aqui — os outros tipos de anexo existem só pra guardar/consultar
+  // documento, não pra ilustrar o relatório impresso.
+  const fotosParaRelatorio = poco.anexos.filter(
+    (anexo) => anexo.tipo === "foto" && anexo.incluirNoRelatorio
+  );
+  const figurasFotos = (
+    await Promise.all(
+      fotosParaRelatorio.map(async (anexo) => {
+        const dataUri = await lerAnexoComoDataUri(anexo.pocoId, anexo.id, anexo.nomeArquivo);
+        if (!dataUri) return "";
+        const legenda = anexo.legenda ? escaparHtml(anexo.legenda) : "";
+        return `
+          <figure>
+            <img src="${dataUri}" alt="${legenda || escaparHtml(anexo.nomeArquivo)}" />
+            ${legenda ? `<figcaption>${legenda}</figcaption>` : ""}
+          </figure>`;
+      })
+    )
+  ).join("");
+  const fotos = figurasFotos
+    ? `
+    <section class="fotos">
+      <h2>Fotos</h2>
+      <div class="grade-fotos">${figurasFotos}</div>
+    </section>`
+    : "";
+
   const assinatura = `
     <section class="assinatura">
       <h2>Responsabilidade técnica</h2>
@@ -286,6 +315,7 @@ function renderizarCorpoRelatorio(dados: DadosRelatorio): string {
     litologia,
     construtivo,
     niveisEVazao,
+    fotos,
     assinatura,
   ].join("\n");
 }
@@ -326,14 +356,18 @@ const estilos = `
   .capa-identificacao { font-size: 18px; font-weight: 600; margin-top: 16px; }
   .capa-info { margin-top: 24px; color: #444; }
   .capa-info p { margin: 4px 0; }
+  .grade-fotos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grade-fotos figure { margin: 0; break-inside: avoid; }
+  .grade-fotos img { width: 100%; max-height: 260px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px; }
+  .grade-fotos figcaption { font-size: 10px; color: #555; margin-top: 4px; text-align: center; }
   .assinatura { margin-top: 60px; break-inside: avoid; text-align: center; }
   .linha-assinatura { border-top: 1px solid #000; width: 320px; margin: 60px auto 8px; }
   .assinatura-nome { font-weight: 600; margin: 0; }
   .assinatura-detalhe { color: #555; margin: 2px 0 0; }
 `;
 
-export function renderizarHtmlRelatorio(dados: DadosRelatorio): string {
-  const corpo = renderizarCorpoRelatorio(dados);
+export async function renderizarHtmlRelatorio(dados: DadosRelatorio): Promise<string> {
+  const corpo = await renderizarCorpoRelatorio(dados);
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>

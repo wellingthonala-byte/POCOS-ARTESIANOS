@@ -16,7 +16,7 @@ export async function gerarRelatorioPdf(pocoId: string): Promise<Buffer | null> 
   const dados = await buscarDadosRelatorio(pocoId);
   if (!dados) return null;
 
-  const html = renderizarHtmlRelatorio(dados);
+  const html = await renderizarHtmlRelatorio(dados);
   const nomeEmpresa = dados.configuracao?.nomeEmpresa ?? "";
 
   const browser = await puppeteer.launch({

@@ -126,6 +126,9 @@ src/
         analises/
           page.tsx              # Lista análises de água do poço + criar nova (Fase 6)
           [analiseId]/page.tsx  # Editar análise + lançar/remover parâmetros
+        anexos/
+          page.tsx              # Lista anexos do poço + formulário de upload (Fase 6)
+          [anexoId]/arquivo/route.ts  # GET → serve o arquivo físico (nunca por caminho estático)
         relatorio/
           pdf/route.ts          # GET → PDF do relatório (Fase 3)
           excel/route.ts        # GET → planilha Excel do relatório (Fase 3)
@@ -149,6 +152,8 @@ src/
       formulario-nova-analise.tsx  # Cria análise de água (Fase 6)
       formulario-analise.tsx        # Edita/exclui uma análise de água
       lista-parametros.tsx           # Adiciona/remove parâmetro, destaca fora do VMP
+      formulario-anexo.tsx            # Upload de anexo — arquivo, tipo, legenda (Fase 6)
+      lista-anexos.tsx                 # Miniatura/ícone por anexo + remover
     pwa/                  # Fase 5
       registrar-service-worker.tsx  # Só o efeito de registrar o service worker
       indicador-conectividade.tsx    # Indicador permanente online/offline no cabeçalho
@@ -189,12 +194,16 @@ src/
       sincronizar.ts         # Reaplica a fila quando a conexão volta
     graficos/
       grafico-linha.ts        # Gráfico de linha em SVG (string, sem lib) — Fase 6
+    anexos/
+      armazenamento.ts        # Convenção de nome físico, extensão aceita, validação (Fase 6)
   generated/prisma/       # Código gerado pelo Prisma — NUNCA editar à mão
 public/
   manifest.json           # Manifest da PWA (Fase 5)
   service-worker.js        # Service worker do app shell (Fase 5) — precisa ficar na raiz
                            # pública para o escopo de registro cobrir o site inteiro
   icons/                  # Ícones da PWA (192, 512, maskable, apple-touch-icon)
+uploads/                  # Arquivo físico de anexo (Fase 6) — fora de src/ e de public/,
+                          # nunca versionado (.gitignore), servido só via Route Handler
 prisma/
   schema.prisma          # Schema do banco (entidades da Fase 1)
   seed.ts                # Seed de desenvolvimento (cliente, obra, 2 poços completos)
@@ -629,6 +638,93 @@ sincronização ficam para as próximas etapas.
   (Ferro total 0,55 mg/L com VMP máximo 0,30) — o destaque vermelho e o
   selo "Fora do padrão" apareceram só nesse parâmetro, os demais
   continuaram normais.
+
+### Anexos — decisões da Fase 6, etapa 3
+
+- **Arquivo físico em disco local (`uploads/`), não em `public/` nem em
+  serviço externo (S3 etc.)**: mesmo raciocínio de preferir solução direta
+  a dependência nova que já valeu pro service worker e pros SVGs de
+  perfil/gráfico, e consistente com a escala de uma única empresa. Fora de
+  `public/` de propósito — facilita controlar acesso quando a autenticação
+  existir (arquivo de poço não deveria ser servido estático pra qualquer
+  um) — e nunca versionado (`.gitignore`).
+- **Nome físico do arquivo é `<id do anexo><extensão>`, nunca o nome
+  original do upload**: o id já sai único (gerado no servidor via
+  `randomUUID`, não o `cuid()` padrão do Prisma — só porque precisamos do
+  valor ANTES do `prisma.anexo.create`, pra montar o caminho em disco e o
+  `arquivoUrl` na mesma chamada). Evita qualquer problema de espaço/acento/
+  caractere especial no nome escolhido pelo usuário, que fica só no campo
+  `nomeArquivo` do banco (usado pro Content-Disposition no download).
+- **`arquivoUrl` guarda a Route Handler (`/pocos/{id}/anexos/{anexoId}/arquivo`),
+  nunca o caminho físico**: a Route Handler busca o registro no banco (por
+  `id`+`pocoId`, com `excluidoEm: null`) e só then monta o caminho em disco
+  a partir de `anexo.id`/`anexo.pocoId` (o registro já validado), nunca a
+  partir dos parâmetros crus da URL — evita qualquer risco de path
+  traversal, mesmo sendo baixo (o `id` sempre vem do próprio `randomUUID`
+  gerado no upload, nunca de entrada do usuário na leitura).
+- **Extensão aceita é uma lista pequena e fechada** (`.jpg`, `.jpeg`,
+  `.png`, `.webp`, `.heic`, `.heif`, `.pdf` — ver
+  `src/lib/anexos/armazenamento.ts`), decidida pela extensão do nome
+  original, não pelo `File.type` do navegador (mais simples e mais
+  confiável — HEIC de iPhone às vezes chega com `type` vazio). Imagem e PDF
+  são aceitos independente do `tipo` de anexo (foto/art/croqui/laudo/outro)
+  escolhido: o técnico pode fotografar uma ART em papel em vez de anexar o
+  PDF original, então não faz sentido travar por tipo.
+- **Limite de 15MB por arquivo** (`TAMANHO_MAXIMO_ANEXO_BYTES`), pensado
+  pra foto de câmera de celular com folga — exigiu subir
+  `experimental.serverActions.bodySizeLimit` pra `16mb` em
+  `next.config.ts`, já que o padrão do Next (~1MB) rejeitaria qualquer
+  foto de verdade antes mesmo da nossa própria validação de tamanho rodar.
+- **Remover anexo é exclusão lógica só do registro — o arquivo físico
+  NUNCA é apagado do disco**: estende a convenção "dado de campo não se
+  apaga" (`excluido_em`, nunca exclusão física) ao próprio arquivo, não só
+  à linha do banco. Custo é acúmulo de arquivo órfão em disco ao longo do
+  tempo; aceitável na escala do projeto, e evita o risco maior de apagar
+  por engano uma foto que documentaria a obra.
+- **De propósito SEM fila de sincronização offline**, mesmo raciocínio já
+  aplicado à análise físico-química: `envolverAcaoComFilaOffline` serializa
+  o payload da fila como `Record<string,string>` (pra caber em IndexedDB) e
+  um `File` não cabe nesse formato sem reescrever a fila pra suportar
+  Blob — desproporcional pro ganho aqui, e o próprio plano de produto já
+  trata "foto offline" como uma fila separada de upload em segundo plano,
+  uma entrega futura distinta desta etapa. `envolverAcaoSemFila` garante só
+  que a tela não quebra sem rede.
+- **Fotos marcadas com `incluirNoRelatorio` entram no PDF, croqui/ART/laudo
+  não**: é a única leitura do campo `incluirNoRelatorio` no sistema, então
+  deixá-lo sem efeito nenhum no relatório deixaria a opção da tela sem
+  propósito. Implementado em `template.ts`, reaproveitando a mesma técnica
+  do desenho do perfil (Fase 4) — string HTML pura, sem JSX — mas agora com
+  leitura de arquivo: `lerAnexoComoDataUri` (`armazenamento.ts`) lê o
+  arquivo do disco e embute como `data:image/...;base64,...` direto no
+  HTML que vai pro Puppeteer, em vez de fazer o Chromium buscar a Route
+  Handler de volta pela rede (mesma lógica de simplicidade que já valia pro
+  SVG do perfil). Retorna `null` em vez de lançar se o arquivo sumiu do
+  disco ou não é imagem — uma foto faltando não pode derrubar o relatório
+  inteiro. Por isso `renderizarCorpoRelatorio`/`renderizarHtmlRelatorio`
+  passaram a ser `async` (leitura de arquivo é I/O), e `dados.ts` passou a
+  incluir `anexos` no `findFirst` do poço.
+- **Excel não ganhou fotos**: o plano já descreve Excel como "sem
+  formatação elaborada" e PDF como saída prioritária — embutir imagem em
+  planilha (`exceljs` suporta, mas exige posicionar por célula/âncora) não
+  compensava pra esta etapa.
+- **Bug pego e corrigido no seed (`prisma/seed.ts`)**: os quatro anexos por
+  poço já existiam desde a Fase 1, mas com `arquivoUrl` fabricado
+  (`/uploads/seed/pt-01/...`) que nunca correspondeu a um arquivo real —
+  ficou invisível até esta etapa existir uma tela que de fato tenta
+  carregar o arquivo. Corrigido criando um arquivo físico mínimo de
+  verdade (`criarAnexoSeed`, mesma convenção de nome/URL da action
+  `adicionarAnexo`) pra cada anexo do seed, com `id` explícito via
+  `randomUUID()` (Prisma aceita sobrescrever o default do `cuid()`) — sem
+  isso, a miniatura da foto do seed quebrava (404) na tela de anexos e a
+  foto marcada pro relatório simplesmente não aparecia no PDF.
+- **Testado fazendo upload real de uma foto e de um PDF** pela tela (uma
+  marcada com "incluir no relatório", a outra não), conferindo que a Route
+  Handler serve os bytes de volta com o `Content-Type` certo (200,
+  `image/jpeg`/`application/pdf`), que o relatório em PDF gerado depois
+  mostra as DUAS fotos marcadas (a do seed + a de teste) lado a lado numa
+  seção "Fotos" antes da assinatura — croqui/ART/laudo (PDF) corretamente
+  de fora — e que remover um anexo faz sumir da lista, marca
+  `excluido_em` no banco e mantém o arquivo físico intacto em disco.
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

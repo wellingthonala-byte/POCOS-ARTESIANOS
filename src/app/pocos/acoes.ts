@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { Prisma } from "@/generated/prisma/client";
 import {
   StatusPoco,
@@ -8,9 +10,16 @@ import {
   MetodoPerfuracao,
   TipoRevestimento,
   TipoTesteVazao,
+  TipoAnexo,
 } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { obterUsuarioAtualId } from "@/lib/usuario-atual";
+import {
+  caminhoArquivoAnexo,
+  caminhoDiretorioAnexos,
+  obterExtensaoValidada,
+  TAMANHO_MAXIMO_ANEXO_BYTES,
+} from "@/lib/anexos/armazenamento";
 
 export type EstadoFormularioPoco = {
   erro?: string;
@@ -1064,5 +1073,107 @@ export async function removerParametro(
   }
 
   revalidatePath(`/pocos/${pocoId}/analises/${analiseId}`);
+  return { sucesso: true };
+}
+
+// ---------------------------------------------------------------------------
+// Anexos (Fase 6, etapa 3): foto, ART, croqui ou laudo vinculado ao poço.
+// Arquivo físico vai pro disco local (uploads/, fora de src/ e de public/ —
+// ver src/lib/anexos/armazenamento.ts); o banco guarda só o registro e o
+// caminho de download (arquivoUrl aponta pra Route Handler, nunca pro
+// caminho físico em disco).
+//
+// De propósito SEM fila de sincronização offline, mesmo raciocínio da
+// análise físico-química: envolverAcaoComFilaOffline serializa o payload
+// como Record<string,string> pra guardar em IndexedDB, e um File não cabe
+// nesse formato sem reescrever a fila pra suportar Blob — desproporcional
+// pro ganho aqui (diferente de litologia/perfuração, o plano de produto já
+// trata "fotos offline" como fila separada de upload em segundo plano, uma
+// entrega futura). envolverAcaoSemFila garante que a tela não quebra sem
+// rede, só sem guardar a tentativa.
+// ---------------------------------------------------------------------------
+
+export type EstadoAnexo = {
+  erro?: string;
+  sucesso?: boolean;
+};
+
+function tratarErroAnexo(erro: unknown): EstadoAnexo {
+  return { erro: erro instanceof Error ? erro.message : "Erro ao salvar o anexo." };
+}
+
+export async function adicionarAnexo(
+  pocoId: string,
+  _estadoAnterior: EstadoAnexo,
+  formData: FormData
+): Promise<EstadoAnexo> {
+  void _estadoAnterior;
+  try {
+    const arquivo = formData.get("arquivo");
+    if (!(arquivo instanceof File) || arquivo.size === 0) {
+      throw new Error("Selecione um arquivo.");
+    }
+    if (arquivo.size > TAMANHO_MAXIMO_ANEXO_BYTES) {
+      throw new Error("O arquivo excede o tamanho máximo de 15MB.");
+    }
+
+    const tipo = validarEnum(
+      Object.values(TipoAnexo),
+      String(formData.get("tipo") ?? ""),
+      "Tipo de anexo"
+    );
+    const legenda = String(formData.get("legenda") ?? "").trim();
+    const incluirNoRelatorio = formData.get("incluirNoRelatorio") === "on";
+
+    const nomeOriginal = arquivo.name || "arquivo";
+    const extensao = obterExtensaoValidada(nomeOriginal);
+    const criadoPorId = await obterUsuarioAtualId();
+    const id = randomUUID();
+
+    await mkdir(caminhoDiretorioAnexos(pocoId), { recursive: true });
+    const bytes = Buffer.from(await arquivo.arrayBuffer());
+    await writeFile(caminhoArquivoAnexo(pocoId, id, extensao), bytes);
+
+    await prisma.anexo.create({
+      data: {
+        id,
+        pocoId,
+        tipo,
+        arquivoUrl: `/pocos/${pocoId}/anexos/${id}/arquivo`,
+        nomeArquivo: nomeOriginal,
+        legenda: legenda || null,
+        incluirNoRelatorio,
+        criadoPorId,
+      },
+    });
+  } catch (erro) {
+    return tratarErroAnexo(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/anexos`);
+  return { sucesso: true };
+}
+
+export async function removerAnexo(
+  anexoId: string,
+  pocoId: string,
+  _estadoAnterior: EstadoAnexo,
+  _formData: FormData
+): Promise<EstadoAnexo> {
+  void _estadoAnterior;
+  void _formData;
+  try {
+    // Exclusão lógica: o arquivo físico continua em disco de propósito,
+    // mesma convenção de "dado de campo não se apaga" aplicada ao arquivo,
+    // não só à linha do banco.
+    await prisma.anexo.update({
+      where: { id: anexoId },
+      data: { excluidoEm: new Date() },
+    });
+  } catch (erro) {
+    return tratarErroAnexo(erro);
+  }
+
+  revalidatePath(`/pocos/${pocoId}/anexos`);
   return { sucesso: true };
 }

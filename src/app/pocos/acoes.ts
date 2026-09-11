@@ -15,6 +15,8 @@ export type EstadoFormularioPoco = {
   erro?: string;
   sucesso?: boolean;
   pocoId?: string;
+  conflito?: boolean;
+  atualizadoEm?: string;
 };
 
 function validarEnum<T extends string>(
@@ -78,6 +80,59 @@ function tratarErro(erro: unknown): EstadoFormularioPoco {
 }
 
 // ---------------------------------------------------------------------------
+// Detecção de conflito (Fase 5, etapa 4): telas de "sobrescrever campo"
+// (identificação, perfuração, níveis e vazão) mandam junto o atualizado_em
+// que viram quando a tela carregou (`baseAtualizadoEm` no formData — ver
+// useAutosavePoco/FormularioIdentificacaoLocacao). Se o registro no
+// servidor já tiver mudado desde então — outro aparelho, ou o escritório
+// editando enquanto o técnico estava offline —, a gravação NÃO é aplicada:
+// as duas versões ficam em `conflito_edicao` para revisão manual, nunca
+// sobrescrevendo silenciosamente (ver /conflitos).
+// ---------------------------------------------------------------------------
+
+type EstadoAtualParaConflito = { atualizadoEm: Date; dados: Record<string, unknown> };
+
+async function aplicarComVerificacaoDeConflito(
+  pocoId: string,
+  tipo: string,
+  formData: FormData,
+  buscarEstadoAtual: () => Promise<EstadoAtualParaConflito | null>,
+  aplicar: (estadoAtual: EstadoAtualParaConflito | null) => Promise<Date>
+): Promise<{ conflito: boolean; atualizadoEm?: string }> {
+  const baseAtualizadoEm = formData.get("baseAtualizadoEm");
+  const atual = await buscarEstadoAtual();
+
+  const temConflito =
+    typeof baseAtualizadoEm === "string" &&
+    baseAtualizadoEm !== "" &&
+    atual !== null &&
+    atual.atualizadoEm.toISOString() !== baseAtualizadoEm;
+
+  if (temConflito) {
+    const criadoPorId = await obterUsuarioAtualId();
+    const dadosLocais: Record<string, string> = {};
+    formData.forEach((valor, chave) => {
+      if (chave !== "baseAtualizadoEm") dadosLocais[chave] = String(valor);
+    });
+
+    await prisma.conflitoEdicao.create({
+      data: {
+        pocoId,
+        tipo,
+        dadosServidor: atual.dados as Prisma.InputJsonValue,
+        dadosLocais: dadosLocais as Prisma.InputJsonValue,
+        criadoPorId,
+      },
+    });
+
+    return { conflito: true, atualizadoEm: atual.atualizadoEm.toISOString() };
+  }
+
+  const novoAtualizadoEm = await aplicar(atual);
+  return { conflito: false, atualizadoEm: novoAtualizadoEm.toISOString() };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers para listas de trechos encadeados (litologia, revestimento,
 // cimentação, pré-filtro): cada trecho novo só informa a profundidade
 // final — a inicial vem do último trecho já lançado (ou zero).
@@ -126,6 +181,40 @@ export async function criarPoco(
   }
 }
 
+async function buscarEstadoIdentificacao(
+  pocoId: string
+): Promise<EstadoAtualParaConflito | null> {
+  const poco = await prisma.poco.findUnique({
+    where: { id: pocoId },
+    select: {
+      atualizadoEm: true,
+      identificacao: true,
+      obraId: true,
+      status: true,
+      municipio: true,
+      uf: true,
+      latitude: true,
+      longitude: true,
+      metodoObtencaoCoordenada: true,
+    },
+  });
+  if (!poco) return null;
+
+  return {
+    atualizadoEm: poco.atualizadoEm,
+    dados: {
+      identificacao: poco.identificacao,
+      obraId: poco.obraId,
+      status: poco.status,
+      municipio: poco.municipio,
+      uf: poco.uf,
+      latitude: poco.latitude.toString(),
+      longitude: poco.longitude.toString(),
+      metodoObtencaoCoordenada: poco.metodoObtencaoCoordenada,
+    },
+  };
+}
+
 export async function atualizarIdentificacaoLocacao(
   pocoId: string,
   _estadoAnterior: EstadoFormularioPoco,
@@ -133,9 +222,27 @@ export async function atualizarIdentificacaoLocacao(
 ): Promise<EstadoFormularioPoco> {
   try {
     const dados = lerCamposIdentificacaoLocacao(formData);
-    await prisma.poco.update({ where: { id: pocoId }, data: dados });
-    revalidatePath("/pocos");
-    return { sucesso: true, pocoId };
+
+    const resultado = await aplicarComVerificacaoDeConflito(
+      pocoId,
+      "identificacao.atualizar",
+      formData,
+      () => buscarEstadoIdentificacao(pocoId),
+      async () => {
+        const atualizado = await prisma.poco.update({ where: { id: pocoId }, data: dados });
+        return atualizado.atualizadoEm;
+      }
+    );
+
+    if (!resultado.conflito) {
+      revalidatePath("/pocos");
+    }
+    return {
+      sucesso: true,
+      pocoId,
+      conflito: resultado.conflito,
+      atualizadoEm: resultado.atualizadoEm,
+    };
   } catch (erro) {
     return tratarErro(erro);
   }
@@ -177,6 +284,36 @@ function lerCamposPerfuracao(formData: FormData) {
   };
 }
 
+async function buscarEstadoPerfuracao(
+  pocoId: string
+): Promise<EstadoAtualParaConflito | null> {
+  const poco = await prisma.poco.findUnique({
+    where: { id: pocoId },
+    select: {
+      atualizadoEm: true,
+      metodoPerfuracao: true,
+      dataInicioPerfuracao: true,
+      dataFimPerfuracao: true,
+      profundidadeFinal: true,
+      numeroArt: true,
+      responsavelTecnicoId: true,
+    },
+  });
+  if (!poco) return null;
+
+  return {
+    atualizadoEm: poco.atualizadoEm,
+    dados: {
+      metodoPerfuracao: poco.metodoPerfuracao,
+      dataInicioPerfuracao: poco.dataInicioPerfuracao?.toISOString() ?? null,
+      dataFimPerfuracao: poco.dataFimPerfuracao?.toISOString() ?? null,
+      profundidadeFinal: poco.profundidadeFinal?.toString() ?? null,
+      numeroArt: poco.numeroArt,
+      responsavelTecnicoId: poco.responsavelTecnicoId,
+    },
+  };
+}
+
 export async function atualizarPerfuracao(
   pocoId: string,
   _estadoAnterior: EstadoFormularioPoco,
@@ -184,9 +321,27 @@ export async function atualizarPerfuracao(
 ): Promise<EstadoFormularioPoco> {
   try {
     const dados = lerCamposPerfuracao(formData);
-    await prisma.poco.update({ where: { id: pocoId }, data: dados });
-    revalidatePath("/pocos");
-    return { sucesso: true, pocoId };
+
+    const resultado = await aplicarComVerificacaoDeConflito(
+      pocoId,
+      "perfuracao.atualizar",
+      formData,
+      () => buscarEstadoPerfuracao(pocoId),
+      async () => {
+        const atualizado = await prisma.poco.update({ where: { id: pocoId }, data: dados });
+        return atualizado.atualizadoEm;
+      }
+    );
+
+    if (!resultado.conflito) {
+      revalidatePath("/pocos");
+    }
+    return {
+      sucesso: true,
+      pocoId,
+      conflito: resultado.conflito,
+      atualizadoEm: resultado.atualizadoEm,
+    };
   } catch (erro) {
     return tratarErro(erro);
   }
@@ -478,6 +633,34 @@ function lerNumeroOpcional(formData: FormData, campo: string): number | null {
   return valor;
 }
 
+async function buscarEstadoNiveisVazao(
+  pocoId: string
+): Promise<EstadoAtualParaConflito | null> {
+  const testeExistente = await prisma.testeVazao.findFirst({
+    where: { pocoId, excluidoEm: null },
+    orderBy: { criadoEm: "asc" },
+    select: {
+      atualizadoEm: true,
+      nivelEstatico: true,
+      nivelDinamicoEstabilizado: true,
+      vazaoEstabilizada: true,
+    },
+  });
+  // Sem teste lançado ainda: nada a comparar — a gravação só vai criar o
+  // primeiro, não há como conflitar com um estado que não existe.
+  if (!testeExistente) return null;
+
+  return {
+    atualizadoEm: testeExistente.atualizadoEm,
+    dados: {
+      nivelEstatico: testeExistente.nivelEstatico.toString(),
+      nivelDinamicoEstabilizado:
+        testeExistente.nivelDinamicoEstabilizado?.toString() ?? null,
+      vazaoEstabilizada: testeExistente.vazaoEstabilizada?.toString() ?? null,
+    },
+  };
+}
+
 export async function atualizarNiveisVazao(
   pocoId: string,
   _estadoAnterior: EstadoFormularioPoco,
@@ -509,19 +692,26 @@ export async function atualizarNiveisVazao(
 
     const criadoPorId = await obterUsuarioAtualId();
 
-    await prisma.$transaction(async (tx) => {
-      const testeExistente = await tx.testeVazao.findFirst({
-        where: { pocoId, excluidoEm: null },
-        orderBy: { criadoEm: "asc" },
-      });
-
-      if (testeExistente) {
-        await tx.testeVazao.update({
-          where: { id: testeExistente.id },
-          data: { nivelEstatico, nivelDinamicoEstabilizado, vazaoEstabilizada },
+    const resultado = await aplicarComVerificacaoDeConflito(
+      pocoId,
+      "niveisVazao.atualizar",
+      formData,
+      () => buscarEstadoNiveisVazao(pocoId),
+      async () => {
+        const testeExistente = await prisma.testeVazao.findFirst({
+          where: { pocoId, excluidoEm: null },
+          orderBy: { criadoEm: "asc" },
         });
-      } else {
-        await tx.testeVazao.create({
+
+        if (testeExistente) {
+          const atualizado = await prisma.testeVazao.update({
+            where: { id: testeExistente.id },
+            data: { nivelEstatico, nivelDinamicoEstabilizado, vazaoEstabilizada },
+          });
+          return atualizado.atualizadoEm;
+        }
+
+        const criado = await prisma.testeVazao.create({
           data: {
             pocoId,
             tipo: "continuo",
@@ -532,12 +722,19 @@ export async function atualizarNiveisVazao(
             criadoPorId,
           },
         });
+        return criado.atualizadoEm;
       }
-    });
+    );
+
+    if (!resultado.conflito) {
+      revalidatePath(`/pocos/${pocoId}/niveis-vazao`);
+    }
+    return {
+      sucesso: true,
+      conflito: resultado.conflito,
+      atualizadoEm: resultado.atualizadoEm,
+    };
   } catch (erro) {
     return tratarErro(erro);
   }
-
-  revalidatePath(`/pocos/${pocoId}/niveis-vazao`);
-  return { sucesso: true };
 }

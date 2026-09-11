@@ -21,19 +21,23 @@ function paraNumero(texto: string): number | null {
 
 export function FormularioNiveisVazao({
   pocoId,
+  atualizadoEmInicial,
   valoresIniciais,
   proximaEtapaUrl,
 }: {
   pocoId: string;
+  atualizadoEmInicial: string | null;
   valoresIniciais: ValoresNiveisVazao;
   proximaEtapaUrl: string;
 }) {
   const router = useRouter();
   const { valores, atualizarCampo, salvar, emAndamento, status, mensagemErro } =
-    useAutosavePoco(valoresIniciais, atualizarNiveisVazao.bind(null, pocoId), {
-      pocoId,
-      tipo: "niveisVazao.atualizar",
-    });
+    useAutosavePoco(
+      valoresIniciais,
+      atualizadoEmInicial,
+      atualizarNiveisVazao.bind(null, pocoId),
+      { pocoId, tipo: "niveisVazao.atualizar" }
+    );
 
   const vazaoEspecifica = useMemo(() => {
     const estatico = paraNumero(valores.nivelEstatico);
@@ -103,6 +107,14 @@ export function FormularioNiveisVazao({
               ? "Sem conexão — guardado neste aparelho, será enviado quando a internet voltar."
               : ""}
       </p>
+
+      {status === "conflito" && (
+        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+          Alguém alterou este poço enquanto você estava offline — esta
+          alteração NÃO foi salva, para não sobrescrever o que já foi
+          lançado. O escritório vai revisar as duas versões.
+        </p>
+      )}
 
       {mensagemErro && (
         <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">

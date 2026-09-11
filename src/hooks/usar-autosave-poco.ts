@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { enfileirar, formDataParaObjeto } from "@/lib/offline/fila-sincronizacao";
+import { enfileirarOuSubstituir, formDataParaObjeto } from "@/lib/offline/fila-sincronizacao";
 import { ehErroDeRede } from "@/lib/offline/envolver-acao";
 
-type EstadoAutosave = { erro?: string; sucesso?: boolean };
-type StatusAutosave = "ocioso" | "salvo" | "erro" | "pendente";
+type EstadoAutosave = {
+  erro?: string;
+  sucesso?: boolean;
+  conflito?: boolean;
+  atualizadoEm?: string;
+};
+type StatusAutosave = "ocioso" | "salvo" | "erro" | "pendente" | "conflito";
 
 /**
  * Autosave com debounce compartilhado pelas etapas cujos campos são
@@ -18,10 +23,14 @@ type StatusAutosave = "ocioso" | "salvo" | "erro" | "pendente";
  * sincronização (Fase 5, etapa 3) em vez de deixar o erro estourar sem
  * tratamento — sem isso, editar um campo sem conexão quebra a tela com
  * "Application error" (a chamada da server action nem chega a rodar no
- * servidor, então não tem como a própria action tratar isso).
+ * servidor, então não tem como a própria action tratar isso). Cada
+ * gravação manda junto o último `atualizadoEm` conhecido do registro
+ * (`baseAtualizadoEm`), pra action detectar conflito (Fase 5, etapa 4) —
+ * ver `aplicarComVerificacaoDeConflito` em `acoes.ts`.
  */
 export function useAutosavePoco<V extends Record<string, string>>(
   valoresIniciais: V,
+  atualizadoEmInicial: string | null,
   acao: (estado: EstadoAutosave, formData: FormData) => Promise<EstadoAutosave>,
   offline: { pocoId: string; tipo: string },
   atrasoMs = 800
@@ -31,16 +40,34 @@ export function useAutosavePoco<V extends Record<string, string>>(
   const [status, setStatus] = useState<StatusAutosave>("ocioso");
   const [mensagemErro, setMensagemErro] = useState<string | null>(null);
   const montado = useRef(false);
+  // Não é estado porque não deve disparar re-render — só precisa estar
+  // certo na hora do próximo `salvar`. Só avança quando a gravação realmente
+  // aplicou no servidor: se deu conflito, fica parado no valor antigo de
+  // propósito, pra uma nova tentativa (mesmo manual) continuar acusando o
+  // conflito em vez de sobrescrever por trás do usuário na segunda tentativa.
+  const ultimoAtualizadoEmConhecido = useRef(atualizadoEmInicial);
 
   function salvar(valoresParaSalvar: V, aoConcluir?: () => void) {
     const formData = new FormData();
     Object.entries(valoresParaSalvar).forEach(([chave, valor]) =>
       formData.set(chave, valor)
     );
+    if (ultimoAtualizadoEmConhecido.current) {
+      formData.set("baseAtualizadoEm", ultimoAtualizadoEmConhecido.current);
+    }
 
     iniciarTransicao(async () => {
       try {
         const resultado = await acao({}, formData);
+
+        if (resultado.conflito) {
+          setStatus("conflito");
+          setMensagemErro(null);
+          return;
+        }
+        if (resultado.atualizadoEm) {
+          ultimoAtualizadoEmConhecido.current = resultado.atualizadoEm;
+        }
         if (resultado.erro) {
           setStatus("erro");
           setMensagemErro(resultado.erro);
@@ -53,7 +80,7 @@ export function useAutosavePoco<V extends Record<string, string>>(
         if (!ehErroDeRede(erro)) throw erro;
 
         try {
-          await enfileirar({
+          await enfileirarOuSubstituir({
             tipo: offline.tipo,
             pocoId: offline.pocoId,
             payload: formDataParaObjeto(formData),

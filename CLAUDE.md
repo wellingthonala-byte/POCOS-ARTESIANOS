@@ -109,6 +109,9 @@ src/
     clientes/            # CRUD de cliente (Fase 2)
     obras/                # CRUD de obra (Fase 2)
     configuracoes/        # Dados da empresa usados no relatório (Fase 3)
+    conflitos/            # Revisão manual de conflito de sincronização (Fase 5)
+      page.tsx            # Lista os conflitos pendentes (resolvido_em nulo)
+      acoes.ts            # Server action que resolve um conflito (manter servidor/aplicar local)
     pocos/               # Lista de poços, criação e edição (Fase 2)
       acoes.ts           # Server actions de poço ("use server")
       novo/page.tsx      # Criação — etapa 1 (identificação e locação)
@@ -127,10 +130,13 @@ src/
                            # de propósito NÃO é componente cliente do Next, ver script-offline.ts
       script-offline.ts     # Script vanilla (não é bundle React) injetado inline nessa página
   components/
-    navegacao-principal.tsx  # Cabeçalho com links para Poços/Obras/Clientes/Configurações
+    navegacao-principal.tsx  # Cabeçalho com links para Poços/Obras/Clientes/Configurações/Conflitos —
+                             # de propósito sem busca de dado, ver comentário no arquivo
     clientes/
     obras/
     configuracoes/
+    conflitos/
+      cartao-conflito.tsx  # Compara dado do servidor × dado offline e resolve (Fase 5)
     pocos/               # Componentes de tela específicos de poço
       navegacao-etapas.tsx  # Barra de navegação entre as 5 etapas do poço
       perfil-poco.tsx       # Componente cliente: desenho do perfil + controle de escala
@@ -454,6 +460,78 @@ sincronização ficam para as próximas etapas.
   navegação de página cheia no meio do teste — o item continuou intacto na
   fila e sincronizou normalmente assim que o servidor voltou, sem duplicar
   nem perder a tentativa).
+- **Etapa 4 — detecção de conflito (`conflito_edicao`, `/conflitos`)**: só
+  se aplica às três telas de "sobrescrever campo" (identificação,
+  perfuração, níveis e vazão) — litologia/construtivo ficam de fora de
+  propósito, ver abaixo. Cada gravação dessas manda junto o
+  `baseAtualizadoEm` (o `atualizado_em` do registro no momento em que a
+  tela carregou, ou da última gravação bem-sucedida — rastreado num
+  `useRef`/`useState` no cliente, nunca em `valores`, pra não ir parar no
+  rascunho). `aplicarComVerificacaoDeConflito` (`pocos/acoes.ts`) compara
+  esse valor com o `atualizado_em` atual do registro (`poco` para
+  identificação/perfuração, `teste_vazao` para níveis — cada uma tem sua
+  função `buscarEstado*`); se bateu, aplica normal; se não bateu — alguém
+  mudou o registro nesse meio-tempo —, a gravação NÃO é aplicada: grava as
+  duas versões em `conflito_edicao` e devolve `{conflito: true}` em vez de
+  `{sucesso: true}` puro. A tela mostra um aviso amarelo específico
+  ("alguém alterou este poço... esta alteração NÃO foi salva") e não
+  navega nem limpa rascunho — nunca finge que salvou.
+- **Por que só as 3 telas de sobrescrita**: litologia/revestimento/
+  cimentação/pré-filtro "adicionar"/"remover última" recalculam a
+  ordem/profundidade consultando o banco a cada chamada — nunca sobrescrevem
+  um valor que já existe, só acrescentam ou removem o último. Não têm o
+  mesmo risco de "perder silenciosamente o que alguém mais escreveu" que
+  motivou esta etapa; adicionar detecção de conflito ali seria complexidade
+  sem um problema real por trás.
+- **Coalescer a fila para essas 3 telas (`enfileirarOuSubstituir`)**: like
+  perfuração/níveis re-salvam a cada 800ms (debounce), editar um campo
+  várias vezes offline sem coalescer criaria uma cadeia de itens cada um
+  com o `baseAtualizadoEm` de quando ficou offline — ao reaplicar em
+  sequência, o segundo item acusaria conflito contra o `atualizado_em` que
+  o PRÓPRIO primeiro item acabou de avançar. Como essas telas são sempre
+  uma sobrescrita completa (só o valor mais recente importa), em vez de
+  empilhar mais um item, `enfileirarOuSubstituir` substitui o item pendente
+  do mesmo tipo/poço pelo payload mais novo, mas mantém o
+  `baseAtualizadoEm` ORIGINAL (da primeira edição offline da sequência) —
+  esse sim precisa bater com o servidor.
+- **Depois de um conflito, o `baseAtualizadoEm` conhecido no cliente NÃO
+  avança**: fica parado no valor antigo de propósito. Isso é deliberado —
+  se avançasse pro valor atual do servidor, uma segunda tentativa (mesmo
+  sem o usuário fazer nada além de clicar "salvar" de novo) sobrescreveria
+  o servidor sem novo aviso, na prática contornando a proteção. Ficando
+  travado, qualquer nova tentativa continua acusando conflito até o
+  usuário recarregar a página (e assim pegar o `atualizado_em` real) — o
+  preço é possível "spam" de conflito em vez de sobrescrita silenciosa, e
+  entre os dois o plano é explícito sobre qual errar.
+- **`/conflitos` é a revisão manual do escritório**: lista todo
+  `conflito_edicao` com `resolvido_em` nulo, mostra as duas versões lado a
+  lado (rótulos de campo em `rotulosCamposConflito`, não os nomes crus do
+  banco) e resolve de duas formas — "manter servidor" só marca resolvido;
+  "aplicar dado offline" chama a MESMA server action do
+  `registro-acoes.ts` da fila de sincronização, mas com um `FormData` sem
+  `baseAtualizadoEm` — a ausência dessa marca já faz a action aplicar
+  direto sem checar conflito de novo (é uma decisão consciente de quem
+  está revisando, não uma repetição cega da fila). Rótulos de campo cru
+  (`responsavelTecnicoId` mostra o ID, não o nome do usuário) e datas ISO
+  cruas na coluna "no servidor agora" (vindas de `Date.toISOString()`) são
+  um acabamento pendente — funcional, mas menos legível do que poderia ser;
+  revisar se isso incomodar no uso real.
+- **`NavegacaoPrincipal` de propósito NÃO busca a contagem de conflitos
+  pendentes**: cheguei a testar um badge com `prisma.conflitoEdicao.count()`
+  ali, mas esse componente é usado pelo layout raiz, herdado até pela
+  página estática `/offline` — o Next precisa executar a árvore inteira
+  pra pré-renderizar uma rota estática, então a contagem embutida ficaria
+  congelada no valor de quando rodou `next build` (exigindo Postgres de pé
+  nesse momento, o que não deveria ser um requisito só por causa de um
+  badge decorativo). Ficou só um link simples, sem contagem.
+- **Testado derrubando o servidor de verdade e simulando o "escritório"
+  via uma gravação real pelo Prisma** (não `UPDATE` direto por SQL — isso
+  não aciona o `@updatedAt` do Prisma, e a primeira tentativa desse teste
+  usou SQL direto e não gerou conflito nenhum, confirmando na prática por
+  que a detecção depende do `atualizado_em` avançar de verdade): o dado do
+  "escritório" foi preservado, o conflito foi gravado com as duas versões,
+  a fila local foi esvaziada (o conflito é o item "tratado"), e resolver
+  via "aplicar dado offline" reaplicou o valor do técnico corretamente.
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

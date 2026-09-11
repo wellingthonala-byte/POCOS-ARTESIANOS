@@ -86,6 +86,52 @@ export async function enfileirar(
   avisarMudanca();
 }
 
+// Para telas de "sobrescrever campo" (identificação, perfuração, níveis e
+// vazão — ver envolver-acao.ts), enfileirar cada alteração como um item
+// novo criaria uma cadeia de bases desatualizadas: se o técnico editar o
+// mesmo campo três vezes offline, as três levariam o `baseAtualizadoEm` de
+// quando ficou offline, mas só a primeira reaplicada bate com o servidor —
+// a segunda veria um `atualizadoEm` já avançado pela própria primeira e
+// acusaria conflito consigo mesma. Como essas telas são sempre uma
+// sobrescrita completa (não um "adicionar mais um"), só o valor mais
+// recente importa — por isso aqui SUBSTITUI o item pendente do mesmo
+// tipo/poço em vez de empilhar mais um, mantendo o `baseAtualizadoEm`
+// ORIGINAL (da primeira edição offline dessa sequência), que é o que de
+// fato precisa bater com o servidor.
+export async function enfileirarOuSubstituir(
+  item: Pick<ItemFila, "tipo" | "pocoId" | "payload">
+): Promise<void> {
+  if (!suportado()) {
+    throw new Error(
+      "Este aparelho não suporta armazenamento offline (IndexedDB) — não é possível guardar a alteração para sincronizar depois."
+    );
+  }
+
+  const existentes = await listarFila(item.pocoId);
+  const existente = existentes.find((i) => i.tipo === item.tipo);
+
+  if (!existente) {
+    await enfileirar(item);
+    return;
+  }
+
+  const payloadMesclado: Record<string, string> = { ...item.payload };
+  if (existente.payload.baseAtualizadoEm !== undefined) {
+    payloadMesclado.baseAtualizadoEm = existente.payload.baseAtualizadoEm;
+  }
+
+  const banco = await abrirBanco();
+  await new Promise<void>((resolve, reject) => {
+    const transacao = banco.transaction(TABELA_FILA, "readwrite");
+    transacao.objectStore(TABELA_FILA).put({ ...existente, payload: payloadMesclado });
+    transacao.oncomplete = () => resolve();
+    transacao.onerror = () => reject(transacao.error);
+  });
+
+  banco.close();
+  avisarMudanca();
+}
+
 export async function listarFila(pocoId?: string): Promise<ItemFila[]> {
   if (!suportado()) return [];
   const banco = await abrirBanco();

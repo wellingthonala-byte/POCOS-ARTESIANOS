@@ -133,6 +133,8 @@ model Usuario {
   analisesAguaCriadas       AnaliseAgua[]
   parametrosCriados         Parametro[]
   anexosCriados             Anexo[]
+  conflitosCriados          ConflitoEdicao[]   @relation("ConflitoCriadoPor")
+  conflitosResolvidos       ConflitoEdicao[]   @relation("ConflitoResolvidoPor")
 
   @@map("usuario")
 }
@@ -234,9 +236,45 @@ model Poco {
   testesVazao        TesteVazao[]
   analisesAgua       AnaliseAgua[]
   anexos             Anexo[]
+  conflitosEdicao    ConflitoEdicao[]
 
   @@unique([obraId, identificacao])
   @@map("poco")
+}
+
+// ---------------------------------------------------------------------------
+// Conflito de edição (Fase 5, etapa 4)
+// ---------------------------------------------------------------------------
+
+// Registrado quando a fila de sincronização offline tenta reaplicar uma
+// gravação (identificação, perfuração ou níveis e vazão — telas de
+// "sobrescrever campo") e o dado no servidor mudou desde que o técnico
+// começou a editar offline. Nesse caso a gravação NÃO é aplicada
+// silenciosamente: as duas versões ficam aqui para revisão manual no
+// escritório (ver /conflitos). Sem `sincronizado_em`: diferente das
+// demais tabelas, este registro nasce direto no servidor como resultado da
+// própria sincronização — nunca é ele mesmo um dado pendente na fila
+// offline de outro aparelho.
+model ConflitoEdicao {
+  id            String @id @default(cuid())
+  pocoId        String @map("poco_id")
+  tipo          String // mesma chave da fila offline, ex.: "perfuracao.atualizar"
+  dadosServidor Json   @map("dados_servidor")
+  dadosLocais   Json   @map("dados_locais")
+
+  poco Poco @relation(fields: [pocoId], references: [id])
+
+  resolvidoEm    DateTime? @map("resolvido_em")
+  resolvidoPorId String?   @map("resolvido_por_id")
+  resolvidoPor   Usuario?  @relation("ConflitoResolvidoPor", fields: [resolvidoPorId], references: [id])
+
+  criadoPorId String  @map("criado_por_id")
+  criadoPor   Usuario @relation("ConflitoCriadoPor", fields: [criadoPorId], references: [id])
+
+  criadoEm   DateTime  @default(now()) @map("criado_em")
+  excluidoEm DateTime? @map("excluido_em")
+
+  @@map("conflito_edicao")
 }
 
 // ---------------------------------------------------------------------------

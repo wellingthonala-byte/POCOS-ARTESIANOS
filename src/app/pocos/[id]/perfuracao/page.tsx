@@ -30,6 +30,7 @@ export default async function EtapaPerfuracao({
       <NavegacaoEtapas pocoId={poco.id} etapaAtual="perfuracao" />
       <FormularioPerfuracao
         pocoId={poco.id}
+        atualizadoEmInicial={poco.atualizadoEm.toISOString()}
         valoresIniciais={{
           metodoPerfuracao: poco.metodoPerfuracao ?? "",
           dataInicioPerfuracao: poco.dataInicioPerfuracao

@@ -44,7 +44,7 @@ export function FormularioIdentificacaoLocacao({
   acao,
 }: {
   obras: Obra[];
-  valoresIniciais?: Partial<ValoresFormulario> & { id?: string };
+  valoresIniciais?: Partial<ValoresFormulario> & { id?: string; atualizadoEm?: string };
   acao: (
     estado: EstadoFormularioPoco,
     formData: FormData
@@ -58,11 +58,25 @@ export function FormularioIdentificacaoLocacao({
   // diferente (gerar um ID temporário no cliente e reconciliar depois com
   // o ID real do banco), que ainda não existe — ver CLAUDE.md.
   const acaoComFila = useMemo(
-    () => (pocoId ? envolverAcaoComFilaOffline(acao, "identificacao.atualizar", pocoId) : acao),
+    () =>
+      pocoId
+        ? envolverAcaoComFilaOffline(acao, "identificacao.atualizar", pocoId, {
+            substituirNaFila: true,
+          })
+        : acao,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pocoId]
   );
   const [estado, executarAcao, emAndamento] = useActionState(acaoComFila, {});
+
+  // Marca de detecção de conflito (Fase 5, etapa 4) — ver
+  // aplicarComVerificacaoDeConflito em acoes.ts. Só avança quando a
+  // gravação realmente aplicou: se deu conflito, fica no valor antigo de
+  // propósito, pra uma nova tentativa continuar acusando o conflito em vez
+  // de sobrescrever por trás do usuário.
+  const [atualizadoEmConhecido, setAtualizadoEmConhecido] = useState(
+    valoresIniciais?.atualizadoEm ?? null
+  );
 
   const chaveRascunho = valoresIniciais?.id ? null : "rascunho-poco-novo";
   const { valores, setValores, limparRascunho } = useRascunhoFormulario(
@@ -81,6 +95,16 @@ export function FormularioIdentificacaoLocacao({
   const [versaoFormulario, setVersaoFormulario] = useState(0);
 
   useEffect(() => {
+    if (estado.conflito) {
+      // Alguém alterou este poço enquanto o técnico estava offline — a
+      // gravação NÃO foi aplicada, então não limpa rascunho nem navega:
+      // o usuário precisa ver o aviso antes de decidir o que fazer.
+      setVersaoFormulario((v) => v + 1);
+      return;
+    }
+    if (estado.atualizadoEm) {
+      setAtualizadoEmConhecido(estado.atualizadoEm);
+    }
     if (estado.sucesso) {
       limparRascunho();
       // No caminho offline (etapa 3), a action nem chega a rodar no
@@ -136,6 +160,10 @@ export function FormularioIdentificacaoLocacao({
       action={executarAcao}
       className="flex flex-col gap-5"
     >
+      {atualizadoEmConhecido && (
+        <input type="hidden" name="baseAtualizadoEm" value={atualizadoEmConhecido} />
+      )}
+
       <Campo rotulo="Identificação do poço" obrigatorio>
         <input
           name="identificacao"
@@ -260,6 +288,14 @@ export function FormularioIdentificacaoLocacao({
           </select>
         </Campo>
       </div>
+
+      {estado.conflito && (
+        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+          Alguém alterou este poço enquanto você estava offline — esta
+          alteração NÃO foi salva, para não sobrescrever o que já foi
+          lançado. O escritório vai revisar as duas versões.
+        </p>
+      )}
 
       {estado.erro && (
         <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">

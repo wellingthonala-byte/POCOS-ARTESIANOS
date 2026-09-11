@@ -1,4 +1,4 @@
-import { enfileirar, formDataParaObjeto } from "./fila-sincronizacao";
+import { enfileirar, enfileirarOuSubstituir, formDataParaObjeto } from "./fila-sincronizacao";
 
 // Wrapper genérico reaproveitado por qualquer tela que chame uma server
 // action diretamente (via useActionState ou dentro de um startTransition):
@@ -19,7 +19,8 @@ type EstadoComPendente = { erro?: string; sucesso?: boolean; pendente?: boolean 
 export function envolverAcaoComFilaOffline<E extends EstadoComPendente>(
   acao: (estado: E, formData: FormData) => Promise<E>,
   tipo: string,
-  pocoId: string
+  pocoId: string,
+  opcoes?: { substituirNaFila?: boolean }
 ): (estado: E, formData: FormData) => Promise<E> {
   return async (estadoAnterior, formData) => {
     try {
@@ -28,7 +29,12 @@ export function envolverAcaoComFilaOffline<E extends EstadoComPendente>(
       if (!ehErroDeRede(erro)) throw erro;
 
       try {
-        await enfileirar({ tipo, pocoId, payload: formDataParaObjeto(formData) });
+        const item = { tipo, pocoId, payload: formDataParaObjeto(formData) };
+        if (opcoes?.substituirNaFila) {
+          await enfileirarOuSubstituir(item);
+        } else {
+          await enfileirar(item);
+        }
       } catch {
         return {
           ...estadoAnterior,

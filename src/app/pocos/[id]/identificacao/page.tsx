@@ -45,6 +45,7 @@ export default async function EtapaIdentificacao({
           latitude: poco.latitude.toString(),
           longitude: poco.longitude.toString(),
           metodoObtencaoCoordenada: poco.metodoObtencaoCoordenada,
+          atualizadoEm: poco.atualizadoEm.toISOString(),
         }}
         acao={atualizarIdentificacaoLocacao.bind(null, poco.id)}
       />

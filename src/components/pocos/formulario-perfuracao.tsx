@@ -22,21 +22,25 @@ type ResponsavelTecnico = { id: string; nome: string; crea: string | null };
 
 export function FormularioPerfuracao({
   pocoId,
+  atualizadoEmInicial,
   valoresIniciais,
   responsaveisTecnicos,
   proximaEtapaUrl,
 }: {
   pocoId: string;
+  atualizadoEmInicial: string;
   valoresIniciais: ValoresPerfuracao;
   responsaveisTecnicos: ResponsavelTecnico[];
   proximaEtapaUrl: string;
 }) {
   const router = useRouter();
   const { valores, atualizarCampo, salvar, emAndamento, status, mensagemErro } =
-    useAutosavePoco(valoresIniciais, atualizarPerfuracao.bind(null, pocoId), {
-      pocoId,
-      tipo: "perfuracao.atualizar",
-    });
+    useAutosavePoco(
+      valoresIniciais,
+      atualizadoEmInicial,
+      atualizarPerfuracao.bind(null, pocoId),
+      { pocoId, tipo: "perfuracao.atualizar" }
+    );
 
   function salvarEContinuar() {
     salvar(valores, () => router.push(proximaEtapaUrl));
@@ -128,6 +132,14 @@ export function FormularioPerfuracao({
               ? "Sem conexão — guardado neste aparelho, será enviado quando a internet voltar."
               : ""}
       </p>
+
+      {status === "conflito" && (
+        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+          Alguém alterou este poço enquanto você estava offline — esta
+          alteração NÃO foi salva, para não sobrescrever o que já foi
+          lançado. O escritório vai revisar as duas versões.
+        </p>
+      )}
 
       {mensagemErro && (
         <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">

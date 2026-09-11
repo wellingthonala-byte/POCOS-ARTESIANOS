@@ -30,6 +30,7 @@ export default async function EtapaNiveisVazao({
       <NavegacaoEtapas pocoId={poco.id} etapaAtual="niveis-vazao" />
       <FormularioNiveisVazao
         pocoId={poco.id}
+        atualizadoEmInicial={testeVazao ? testeVazao.atualizadoEm.toISOString() : null}
         valoresIniciais={{
           nivelEstatico: testeVazao ? testeVazao.nivelEstatico.toString() : "",
           nivelDinamicoEstabilizado: testeVazao?.nivelDinamicoEstabilizado

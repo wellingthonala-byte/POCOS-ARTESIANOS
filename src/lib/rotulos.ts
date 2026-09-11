@@ -60,3 +60,33 @@ export const rotulosTipoAnexo: Record<string, string> = {
   laudo: "Laudo",
   outro: "Outro",
 };
+
+// Tipo gravado em conflito_edicao — mesma chave usada na fila de
+// sincronização offline (ver registro-acoes.ts).
+export const rotulosTipoConflito: Record<string, string> = {
+  "identificacao.atualizar": "Identificação e locação",
+  "perfuracao.atualizar": "Perfuração",
+  "niveisVazao.atualizar": "Níveis e vazão",
+};
+
+// Nome de campo (chave do payload) → rótulo em português, pra mostrar a
+// comparação servidor×offline sem expor os nomes crus dos campos do banco.
+export const rotulosCamposConflito: Record<string, string> = {
+  identificacao: "Identificação",
+  obraId: "Obra",
+  status: "Status",
+  municipio: "Município",
+  uf: "UF",
+  latitude: "Latitude",
+  longitude: "Longitude",
+  metodoObtencaoCoordenada: "Método de obtenção da coordenada",
+  metodoPerfuracao: "Método de perfuração",
+  dataInicioPerfuracao: "Início da perfuração",
+  dataFimPerfuracao: "Fim da perfuração",
+  profundidadeFinal: "Profundidade final",
+  numeroArt: "Número da ART",
+  responsavelTecnicoId: "Responsável técnico",
+  nivelEstatico: "Nível estático",
+  nivelDinamicoEstabilizado: "Nível dinâmico estabilizado",
+  vazaoEstabilizada: "Vazão estabilizada",
+};

@@ -6,6 +6,8 @@ import { mapearDadosParaPerfil, temDadosDePerfil } from "@/lib/perfil/mapear-dad
 import { EspelharPocoOffline } from "@/components/pwa/espelhar-poco-offline";
 import { FormularioExcluirPoco } from "@/components/pocos/formulario-excluir-poco";
 import { rotulosStatusPoco, coresStatusPoco } from "@/lib/rotulos";
+import { Cartao } from "@/components/ui/cartao";
+import { LinhaMenu } from "@/components/ui/linha-menu";
 
 export const dynamic = "force-dynamic";
 
@@ -71,9 +73,11 @@ export default async function DetalheDoPoco({
         }}
       />
       <div className="mb-1 flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Poço {poco.identificacao}</h1>
+        <h1 className="font-mono text-2xl font-bold text-gray-900">
+          Poço {poco.identificacao}
+        </h1>
         <span
-          className={`rounded-full px-3 py-1 text-sm font-medium ${coresStatusPoco[poco.status]}`}
+          className={`rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${coresStatusPoco[poco.status]}`}
         >
           {rotulosStatusPoco[poco.status]}
         </span>
@@ -85,61 +89,49 @@ export default async function DetalheDoPoco({
       <NavegacaoEtapas pocoId={poco.id} etapaAtual="" />
 
       {temPerfil && (
-        <div className="mt-6">
-          <h2 className="mb-2 font-medium">Perfil do poço</h2>
+        <Cartao titulo="Perfil do poço">
           <PerfilPoco
             camadas={camadas}
             construtivo={construtivo}
             profundidadeTotal={profundidadeTotal}
           />
-        </div>
+        </Cartao>
       )}
 
-      <div className="mt-6 flex flex-col gap-3 rounded-lg border border-gray-200 p-4">
-        <h2 className="font-medium">Teste de vazão</h2>
-        <a
+      <Cartao titulo="Registros do poço">
+        <LinhaMenu
           href={`/pocos/${poco.id}/teste-vazao`}
-          className="flex min-h-11 items-center justify-center rounded-md bg-gray-100 px-4 text-base font-semibold text-gray-700 active:bg-gray-200"
-        >
-          Abrir teste de vazão completo
-        </a>
-      </div>
-
-      <div className="mt-6 flex flex-col gap-3 rounded-lg border border-gray-200 p-4">
-        <h2 className="font-medium">Análise de água</h2>
-        <a
+          rotulo="Teste de vazão"
+          descricao="Leituras, cronômetro e gráficos"
+        />
+        <LinhaMenu
           href={`/pocos/${poco.id}/analises`}
-          className="flex min-h-11 items-center justify-center rounded-md bg-gray-100 px-4 text-base font-semibold text-gray-700 active:bg-gray-200"
-        >
-          Abrir análises de água
-        </a>
-      </div>
-
-      <div className="mt-6 flex flex-col gap-3 rounded-lg border border-gray-200 p-4">
-        <h2 className="font-medium">Anexos</h2>
-        <a
+          rotulo="Análises de água"
+          descricao="Parâmetros físico-químicos e VMP"
+        />
+        <LinhaMenu
           href={`/pocos/${poco.id}/anexos`}
-          className="flex min-h-11 items-center justify-center rounded-md bg-gray-100 px-4 text-base font-semibold text-gray-700 active:bg-gray-200"
-        >
-          Abrir fotos, ART, croqui e laudos
-        </a>
-      </div>
+          rotulo="Anexos"
+          descricao="Fotos, ART, croqui e laudos"
+        />
+      </Cartao>
 
-      <div className="mt-6 flex flex-col gap-3 rounded-lg border border-gray-200 p-4">
-        <h2 className="font-medium">Relatório</h2>
-        <a
-          href={`/pocos/${poco.id}/relatorio/pdf`}
-          className="flex min-h-11 items-center justify-center rounded-md bg-blue-600 px-4 text-base font-semibold text-white active:bg-blue-700"
-        >
-          Baixar relatório em PDF
-        </a>
-        <a
-          href={`/pocos/${poco.id}/relatorio/excel`}
-          className="flex min-h-11 items-center justify-center rounded-md bg-gray-100 px-4 text-base font-semibold text-gray-700 active:bg-gray-200"
-        >
-          Baixar planilha Excel
-        </a>
-      </div>
+      <Cartao titulo="Relatório">
+        <div className="flex flex-col gap-3">
+          <a
+            href={`/pocos/${poco.id}/relatorio/pdf`}
+            className="flex min-h-11 items-center justify-center rounded-sm bg-orange-500 px-4 text-base font-semibold text-white active:bg-orange-600"
+          >
+            Baixar relatório em PDF
+          </a>
+          <a
+            href={`/pocos/${poco.id}/relatorio/excel`}
+            className="flex min-h-11 items-center justify-center rounded-sm bg-gray-100 px-4 text-base font-semibold text-gray-700 active:bg-gray-200"
+          >
+            Baixar planilha Excel
+          </a>
+        </div>
+      </Cartao>
 
       <FormularioExcluirPoco pocoId={poco.id} />
     </main>

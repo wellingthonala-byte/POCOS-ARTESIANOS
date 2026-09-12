@@ -12,7 +12,7 @@ type ValoresNiveisVazao = {
 };
 
 const classeCampo =
-  "min-h-11 w-full rounded-md border border-gray-300 px-3 text-base";
+  "min-h-11 w-full rounded-sm border border-gray-300 bg-white px-3 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
 
 function paraNumero(texto: string): number | null {
   const valor = Number(texto.trim().replace(",", "."));
@@ -117,7 +117,7 @@ export function FormularioNiveisVazao({
       )}
 
       {mensagemErro && (
-        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+        <p className="rounded-sm bg-red-50 p-3 text-sm text-red-700">
           {mensagemErro}
         </p>
       )}

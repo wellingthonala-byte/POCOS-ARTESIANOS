@@ -78,10 +78,10 @@ export function FormularioLitologia({
             {camadas.map((camada, indice) => (
               <li
                 key={camada.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3"
+                className="flex items-center justify-between gap-3 rounded-sm border border-gray-200 bg-white p-3"
               >
                 <span>
-                  <strong>
+                  <strong className="font-mono">
                     {camada.profundidadeInicial}–{camada.profundidadeFinal} m
                   </strong>{" "}
                   {camada.descricao}
@@ -103,7 +103,7 @@ export function FormularioLitologia({
         )}
 
         {estadoRemover.erro && (
-          <p className="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+          <p className="mt-2 rounded-sm bg-red-50 p-3 text-sm text-red-700">
             {estadoRemover.erro}
           </p>
         )}
@@ -135,7 +135,7 @@ export function FormularioLitologia({
             required
             inputMode="decimal"
             placeholder="Ex.: 15.00"
-            className="min-h-11 w-full rounded-md border border-gray-300 px-3 text-base"
+            className="min-h-11 w-full rounded-sm border border-gray-300 bg-white px-3 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           />
         </label>
 
@@ -148,7 +148,7 @@ export function FormularioLitologia({
             required
             list="sugestoes-litologia"
             placeholder="Ex.: Areia argilosa"
-            className="min-h-11 w-full rounded-md border border-gray-300 px-3 text-base"
+            className="min-h-11 w-full rounded-sm border border-gray-300 bg-white px-3 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           />
           <datalist id="sugestoes-litologia">
             {sugestoesLitologia.map((sugestao) => (
@@ -158,7 +158,7 @@ export function FormularioLitologia({
         </label>
 
         {estadoAdicionar.erro && (
-          <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+          <p className="rounded-sm bg-red-50 p-3 text-sm text-red-700">
             {estadoAdicionar.erro}
           </p>
         )}

@@ -139,6 +139,8 @@ src/
   components/
     navegacao-principal.tsx  # Cabeçalho com links para Poços/Obras/Clientes/Configurações/Conflitos —
                              # de propósito sem busca de dado, ver comentário no arquivo
+    ui/                    # Peças de UI compartilhadas entre seções (Cartao, CartaoLista,
+                           # LinhaMenu, BotaoNovoFlutuante) — identidade visual "prancheta de campo"
     clientes/
     obras/
     configuracoes/
@@ -789,6 +791,81 @@ completo, então não está descrita em nenhuma fase acima.
   `/obras`; com a obra já excluída, excluir o cliente funcionou e voltou
   pra `/clientes`. Confirmado no banco que as três exclusões são lógicas
   (`excluido_em` preenchido, registro continua existindo).
+
+### Identidade visual "prancheta de campo" — fora das fases numeradas
+
+Reformulação visual completa do app, feita depois do plano numerado (Fases
+1–6) já estar pronto — motivada pela intenção de vender acesso ao sistema
+pra outras perfuradoras (o visual genérico de protótipo não sustentava um
+produto pago). Direção: remete a prancheta de engenharia/obra (blueprint +
+laranja de segurança), não a um SaaS genérico — evita a estética clichê de
+"gradiente roxo em fundo branco" e fontes batidas (Inter/Roboto/Geist).
+
+- **A cor inteira do app é redefinida via `@theme` em `globals.css`,
+  reescrevendo as PRÓPRIAS escalas `gray/red/blue/green/amber` do
+  Tailwind**, em vez de trocar `className` por `className` em cada
+  arquivo: qualquer `bg-blue-600`, `text-gray-500`, `bg-amber-100` etc. já
+  usado nas ~40 telas do sistema herda a nova paleta automaticamente. Isso
+  foi confirmado antes de decidir — `grep` no projeto inteiro mostrou que
+  só essas 5 famílias de cor são usadas (nenhum `indigo`/`purple`/`sky`/
+  etc.), então o remapeamento cobre 100% dos casos existentes sem precisar
+  tocar a maioria dos arquivos. `orange` é a ÚNICA família nova, e de
+  propósito reservada como acento pontual (botão flutuante de criar,
+  aba ativa da navegação, "Baixar relatório em PDF", selo "No relatório")
+  — nunca usada como cor de base, pra não diluir o efeito de "acento
+  forte" (o resto do app usa o azul de prancheta como cor primária).
+- **Raio de borda também é redefinido via token (`--radius-sm`/`--radius-md`/
+  `--radius-lg`)**, não por troca de `rounded-md`→`rounded-sm` arquivo por
+  arquivo — mesmo raciocínio de alavancagem: reescrever o token do
+  Tailwind já aperta todo botão/card/input do app pra um raio mais
+  "esquadro técnico", sem editar cada componente.
+- **Tipografia: IBM Plex Sans (corpo) + IBM Plex Mono (dado técnico)**,
+  no lugar do Geist padrão do create-next-app. Escolhida por ter sido
+  desenhada pela IBM pra material técnico/de engenharia — foge do
+  clichê de IA genérica (Inter/Roboto/Arial) e reforça o tom "instrumento
+  de precisão". `font-mono` é aplicado deliberadamente em todo dado
+  numérico que representa medição de campo — profundidade de camada/
+  trecho construtivo, leitura de teste de vazão, identificação do poço no
+  título — não em texto comum.
+- **Componentes de UI compartilhados criados em `src/components/ui/`**
+  (`Cartao`, `CartaoLista`, `LinhaMenu`, `BotaoNovoFlutuante`) consolidam
+  padrões que já apareciam repetidos em várias telas (lista de poço/obra/
+  cliente com o mesmo card clicável; seções da página de detalhe do poço
+  com o mesmo card com título) — introduzidos durante esta reformulação
+  porque já estava tocando esses arquivos de qualquer forma, não como
+  refatoração à parte.
+- **`NavegacaoPrincipal` virou componente cliente só por causa do
+  `usePathname`** (destacar a aba ativa) — continua sem buscar dado
+  nenhum, mesma restrição de sempre (herdado até pela página estática
+  `/offline`, então uma consulta ao banco aqui travaria o build). Testado
+  que isso não quebra o fallback offline (Fase 5, etapa 1): matando o
+  processo do servidor de verdade depois de uma visita online (pra
+  registrar o service worker), navegar pra uma rota nunca visitada cai
+  em `/offline` corretamente, com o cabeçalho novo renderizando normal —
+  o componente cliente da navegação faz parte do bundle compartilhado
+  (carregado em toda rota, não só numa rota específica), então já está no
+  cache do service worker desde a primeira visita online, ao contrário do
+  bug antigo da própria página `/offline` (que era client component e
+  ninguém visitava a rota `/offline` estando online pra cachear o chunk).
+- **Cores dentro do SVG do gráfico de linha (`grafico-linha.ts`) são hex
+  cru, não class do Tailwind** (é string SVG solta, ver decisão da Fase
+  6) — precisaram ser atualizadas à mão pra bater com a paleta nova
+  (linha/eixo/grade), separado do resto do reskin automático.
+- **Cores do desenho do perfil (litológico/construtivo) foram
+  DELIBERADAMENTE mantidas como estavam**: já usam tons terrosos
+  convencionais (areia, argila, rocha) que por coincidência já combinavam
+  com a paleta nova — mexer ali arriscaria a convenção geológica sem
+  ganho visual real.
+- **O PDF do relatório (`template.ts`) NÃO foi tocado nesta reformulação**:
+  é documento técnico/legal entregue a órgão público, com estilo
+  propositalmente conservador (preto sobre branco) — dar a ele a mesma
+  identidade visual "de app" da tela é uma decisão de produto separada,
+  não assumida por conta própria aqui.
+- **Testado em viewport de celular (400px) em cada tela do sistema**
+  (poços, clientes, obras, configurações, conflitos, as 5 etapas do
+  poço + teste de vazão + análises + anexos) — sem rodar em aparelho
+  físico real (mesma ressalva já registrada antes: emulação de viewport
+  estreito no navegador não é o mesmo teste que um celular de verdade).
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

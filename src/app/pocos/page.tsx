@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { rotulosStatusPoco, coresStatusPoco } from "@/lib/rotulos";
 import { EspelharListaPocosOffline } from "@/components/pwa/espelhar-lista-pocos-offline";
+import { CartaoLista } from "@/components/ui/cartao-lista";
+import { BotaoNovoFlutuante } from "@/components/ui/botao-novo-flutuante";
 
 export const dynamic = "force-dynamic";
 
@@ -28,31 +29,28 @@ export default async function ListaDePocos() {
             : null,
         }))}
       />
-      <h1 className="mb-4 text-2xl font-bold">Poços</h1>
+      <h1 className="mb-4 text-2xl font-bold text-gray-900">Poços</h1>
 
       {pocos.length === 0 ? (
         <p className="mt-8 text-center text-gray-500">
-          Nenhum poço cadastrado ainda. Toque em “+” para criar o primeiro.
+          Nenhum poço cadastrado ainda. Toque em &ldquo;+&rdquo; para criar o primeiro.
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
           {pocos.map((poco) => (
             <li key={poco.id}>
-              <Link
-                href={`/pocos/${poco.id}`}
-                className="block rounded-lg border border-gray-200 p-4 active:bg-gray-50"
-              >
+              <CartaoLista href={`/pocos/${poco.id}`}>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-lg font-semibold">
+                  <span className="font-mono text-lg font-semibold text-gray-900">
                     {poco.identificacao}
                   </span>
                   <span
-                    className={`rounded-full px-3 py-1 text-sm font-medium ${coresStatusPoco[poco.status]}`}
+                    className={`rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${coresStatusPoco[poco.status]}`}
                   >
                     {rotulosStatusPoco[poco.status]}
                   </span>
                 </div>
-                <p className="mt-1 text-gray-600">
+                <p className="mt-1 text-gray-700">
                   {poco.obra.nome} — {poco.obra.cliente.nome}
                 </p>
                 <p className="text-sm text-gray-500">
@@ -63,19 +61,13 @@ export default async function ListaDePocos() {
                     ? ` · ${poco.profundidadeFinal.toString()} m`
                     : ""}
                 </p>
-              </Link>
+              </CartaoLista>
             </li>
           ))}
         </ul>
       )}
 
-      <Link
-        href="/pocos/novo"
-        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-3xl text-white shadow-lg active:bg-blue-700"
-        aria-label="Novo poço"
-      >
-        +
-      </Link>
+      <BotaoNovoFlutuante href="/pocos/novo" rotulo="Novo poço" />
     </main>
   );
 }

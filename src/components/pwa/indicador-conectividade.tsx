@@ -61,17 +61,20 @@ export function IndicadorConectividade() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const classeBase =
+    "flex items-center gap-1.5 px-3 py-1 font-mono text-[11px] uppercase tracking-wider";
+
   if (online) {
     if (pendencias === 0) {
       return (
-        <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1 text-xs text-gray-500">
+        <div className={`${classeBase} bg-gray-100 text-gray-600`}>
           <span className="h-2 w-2 rounded-full bg-green-500" />
           Online
         </div>
       );
     }
     return (
-      <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800">
+      <div className={`${classeBase} bg-blue-50 font-semibold text-blue-800`}>
         <span className="h-2 w-2 rounded-full bg-blue-500" />
         {sincronizando
           ? "Sincronizando..."
@@ -81,7 +84,7 @@ export function IndicadorConectividade() {
   }
 
   return (
-    <div className="flex items-center gap-1.5 bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900">
+    <div className={`${classeBase} bg-amber-100 font-semibold text-amber-900`}>
       <span className="h-2 w-2 rounded-full bg-amber-600" />
       Offline
       {pendencias > 0

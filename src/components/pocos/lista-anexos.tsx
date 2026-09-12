@@ -26,7 +26,7 @@ function CartaoAnexo({ pocoId, anexo }: { pocoId: string; anexo: AnexoLista }) {
   const [estado, executar, removendo] = useActionState(acaoRemover, {});
 
   return (
-    <li className="flex gap-3 rounded-lg border border-gray-200 p-3">
+    <li className="flex gap-3 rounded-sm border border-gray-200 bg-white p-3">
       <a
         href={anexo.arquivoUrl}
         target="_blank"
@@ -41,7 +41,7 @@ function CartaoAnexo({ pocoId, anexo }: { pocoId: string; anexo: AnexoLista }) {
             className="h-20 w-20 rounded-md border border-gray-200 object-cover"
           />
         ) : (
-          <span className="flex h-20 w-20 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
+          <span className="flex h-20 w-20 items-center justify-center rounded-sm border border-gray-200 bg-gray-100 font-mono text-sm font-semibold text-gray-500">
             PDF
           </span>
         )}
@@ -49,11 +49,11 @@ function CartaoAnexo({ pocoId, anexo }: { pocoId: string; anexo: AnexoLista }) {
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+          <span className="rounded-sm bg-gray-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-gray-700">
             {rotulosTipoAnexo[anexo.tipo] ?? anexo.tipo}
           </span>
           {anexo.incluirNoRelatorio && (
-            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+            <span className="rounded-sm bg-orange-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-orange-700">
               No relatório
             </span>
           )}

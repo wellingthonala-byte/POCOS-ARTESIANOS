@@ -31,7 +31,7 @@ export default async function TesteVazaoCompletoPage({
 
   return (
     <main className="mx-auto max-w-2xl p-4 pb-24">
-      <h1 className="mb-1 text-2xl font-bold">Poço {poco.identificacao}</h1>
+      <h1 className="mb-1 font-mono text-2xl font-bold text-gray-900">Poço {poco.identificacao}</h1>
       <NavegacaoEtapas pocoId={poco.id} etapaAtual="" />
       <h2 className="mb-4 text-lg font-semibold">Teste de vazão completo</h2>
 

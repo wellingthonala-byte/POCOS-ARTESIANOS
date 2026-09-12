@@ -23,17 +23,15 @@ export function NavegacaoEtapas({
   etapaAtual: string;
 }) {
   return (
-    <nav className="mb-6 flex flex-wrap gap-2 text-sm">
+    <nav className="mb-6 flex flex-wrap gap-1.5 text-sm">
       {etapas.map((etapa) => {
-        const rotuloCompleto = `${etapa.numero}. ${etapa.rotulo}`;
-
         if (!etapa.disponivel) {
           return (
             <span
               key={etapa.chave}
-              className="rounded-full bg-gray-50 px-3 py-1.5 font-medium text-gray-400"
+              className="rounded-sm bg-gray-50 px-3 py-1.5 font-medium text-gray-400"
             >
-              {rotuloCompleto}
+              <span className="font-mono">{etapa.numero}.</span> {etapa.rotulo}
             </span>
           );
         }
@@ -43,11 +41,11 @@ export function NavegacaoEtapas({
           <Link
             key={etapa.chave}
             href={`/pocos/${pocoId}/${etapa.chave}`}
-            className={`rounded-full px-3 py-1.5 font-medium ${
+            className={`rounded-sm px-3 py-1.5 font-medium ${
               ativa ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"
             }`}
           >
-            {rotuloCompleto}
+            <span className="font-mono">{etapa.numero}.</span> {etapa.rotulo}
           </Link>
         );
       })}

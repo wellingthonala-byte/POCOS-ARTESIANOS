@@ -1,18 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { NavegacaoPrincipal } from "@/components/navegacao-principal";
 import { IndicadorConectividade } from "@/components/pwa/indicador-conectividade";
 import { RegistrarServiceWorker } from "@/components/pwa/registrar-service-worker";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// IBM Plex nasceu pra material técnico/de engenharia — combina com o tom
+// "prancheta de campo" do sistema, e o Mono reforça leitura de dado
+// numérico (profundidade, coordenada, vazão) sem parecer uma fonte
+// genérica de SaaS.
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -34,7 +40,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1a56c4",
+  themeColor: "#1c3f5f",
 };
 
 export default function RootLayout({
@@ -45,7 +51,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${plexSans.variable} ${plexMono.variable} antialiased`}
       >
         <RegistrarServiceWorker />
         <IndicadorConectividade />

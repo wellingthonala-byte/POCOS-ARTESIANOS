@@ -59,7 +59,7 @@ export function gerarSvgGraficoLinha(
     cor?: string;
   }
 ): string {
-  const { rotuloEixoX, rotuloEixoY, cor = "#1a56c4" } = opcoes;
+  const { rotuloEixoX, rotuloEixoY, cor = "#1c3f5f" } = opcoes;
   const largura = opcoes.largura ?? LARGURA_PADRAO;
   const altura = opcoes.altura ?? ALTURA_PADRAO;
 
@@ -102,8 +102,8 @@ export function gerarSvgGraficoLinha(
     .map((valor) => {
       const x = paraSvgX(valor);
       return `
-        <line x1="${x.toFixed(1)}" y1="${MARGEM.topo}" x2="${x.toFixed(1)}" y2="${(altura - MARGEM.baixo).toFixed(1)}" stroke="#eee" stroke-width="1" />
-        <text x="${x.toFixed(1)}" y="${(altura - MARGEM.baixo + 16).toFixed(1)}" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#666">${formatarNumero(valor)}</text>
+        <line x1="${x.toFixed(1)}" y1="${MARGEM.topo}" x2="${x.toFixed(1)}" y2="${(altura - MARGEM.baixo).toFixed(1)}" stroke="#e2dbc7" stroke-width="1" />
+        <text x="${x.toFixed(1)}" y="${(altura - MARGEM.baixo + 16).toFixed(1)}" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#83745a">${formatarNumero(valor)}</text>
       `;
     })
     .join("\n");
@@ -112,8 +112,8 @@ export function gerarSvgGraficoLinha(
     .map((valor) => {
       const y = paraSvgY(valor);
       return `
-        <line x1="${MARGEM.esquerda}" y1="${y.toFixed(1)}" x2="${(largura - MARGEM.direita).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eee" stroke-width="1" />
-        <text x="${(MARGEM.esquerda - 6).toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="end" font-family="Arial, sans-serif" font-size="9" fill="#666">${formatarNumero(valor)}</text>
+        <line x1="${MARGEM.esquerda}" y1="${y.toFixed(1)}" x2="${(largura - MARGEM.direita).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e2dbc7" stroke-width="1" />
+        <text x="${(MARGEM.esquerda - 6).toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="end" font-family="Arial, sans-serif" font-size="9" fill="#83745a">${formatarNumero(valor)}</text>
       `;
     })
     .join("\n");
@@ -122,11 +122,11 @@ export function gerarSvgGraficoLinha(
     <rect x="0" y="0" width="${largura}" height="${altura}" fill="#ffffff" />
     ${marcacoesY}
     ${marcacoesX}
-    <line x1="${MARGEM.esquerda}" y1="${MARGEM.topo}" x2="${MARGEM.esquerda}" y2="${(altura - MARGEM.baixo).toFixed(1)}" stroke="#333" stroke-width="1.25" />
-    <line x1="${MARGEM.esquerda}" y1="${(altura - MARGEM.baixo).toFixed(1)}" x2="${(largura - MARGEM.direita).toFixed(1)}" y2="${(altura - MARGEM.baixo).toFixed(1)}" stroke="#333" stroke-width="1.25" />
+    <line x1="${MARGEM.esquerda}" y1="${MARGEM.topo}" x2="${MARGEM.esquerda}" y2="${(altura - MARGEM.baixo).toFixed(1)}" stroke="#302a1f" stroke-width="1.25" />
+    <line x1="${MARGEM.esquerda}" y1="${(altura - MARGEM.baixo).toFixed(1)}" x2="${(largura - MARGEM.direita).toFixed(1)}" y2="${(altura - MARGEM.baixo).toFixed(1)}" stroke="#302a1f" stroke-width="1.25" />
     <polyline points="${linha}" fill="none" stroke="${cor}" stroke-width="1.75" />
     ${circulos}
-    <text x="${(largura / 2).toFixed(1)}" y="${(altura - 4).toFixed(1)}" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#333">${escaparHtml(rotuloEixoX)}</text>
-    <text x="12" y="${(altura / 2).toFixed(1)}" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#333" transform="rotate(-90, 12, ${(altura / 2).toFixed(1)})">${escaparHtml(rotuloEixoY)}</text>
+    <text x="${(largura / 2).toFixed(1)}" y="${(altura - 4).toFixed(1)}" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#302a1f">${escaparHtml(rotuloEixoX)}</text>
+    <text x="12" y="${(altura / 2).toFixed(1)}" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#302a1f" transform="rotate(-90, 12, ${(altura / 2).toFixed(1)})">${escaparHtml(rotuloEixoY)}</text>
   </svg>`;
 }

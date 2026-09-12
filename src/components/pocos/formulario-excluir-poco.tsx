@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo } from "react";
 import { excluirPoco, type EstadoFormularioPoco } from "@/app/pocos/acoes";
+import { Cartao } from "@/components/ui/cartao";
 
 // Poço não tem uma única tela de "editar" (a identificação é só a etapa 1
 // do formulário sequencial, com autosave/conflito/fila offline já
@@ -21,8 +22,7 @@ export function FormularioExcluirPoco({ pocoId }: { pocoId: string }) {
   >(acao, {});
 
   return (
-    <div className="mt-6 flex flex-col gap-3 rounded-lg border border-red-200 p-4">
-      <h2 className="font-medium text-red-700">Excluir poço</h2>
+    <Cartao titulo="Zona de risco" corBorda="border-red-300">
       <p className="text-sm text-gray-500">
         Oculta este poço e todos os dados lançados nele (perfuração,
         litologia, construtivo, testes, análises e anexos). O dado não é
@@ -30,7 +30,7 @@ export function FormularioExcluirPoco({ pocoId }: { pocoId: string }) {
       </p>
 
       {estado.erro && (
-        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{estado.erro}</p>
+        <p className="mt-3 rounded-sm bg-red-50 p-3 text-sm text-red-700">{estado.erro}</p>
       )}
 
       <form
@@ -44,11 +44,11 @@ export function FormularioExcluirPoco({ pocoId }: { pocoId: string }) {
         <button
           type="submit"
           disabled={excluindo}
-          className="min-h-11 w-full rounded-md px-4 text-sm font-medium text-red-600 active:bg-red-50 disabled:opacity-60"
+          className="mt-3 min-h-11 w-full rounded-sm border border-red-300 px-4 text-sm font-medium text-red-600 active:bg-red-50 disabled:opacity-60"
         >
           {excluindo ? "Excluindo..." : "Excluir poço"}
         </button>
       </form>
-    </div>
+    </Cartao>
   );
 }

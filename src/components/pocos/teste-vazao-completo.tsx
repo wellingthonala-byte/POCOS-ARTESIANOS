@@ -15,7 +15,7 @@ import { TipoTesteVazao } from "@/generated/prisma/enums";
 import { Cronometro } from "@/components/pocos/cronometro";
 
 const classeCampo =
-  "min-h-11 w-full rounded-md border border-gray-300 px-3 text-base";
+  "min-h-11 w-full rounded-sm border border-gray-300 bg-white px-3 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
 
 export type LeituraTeste = {
   id: string;
@@ -94,7 +94,7 @@ export function TesteVazaoCompleto({
     return gerarSvgGraficoLinha(pontos, {
       rotuloEixoX: "Rebaixamento (m)",
       rotuloEixoY: "Vazão (m³/h)",
-      cor: "#0f766e",
+      cor: "#d9691d",
     });
   }, [leiturasComVazao, nivelEstatico]);
 
@@ -133,7 +133,7 @@ export function TesteVazaoCompleto({
         </label>
 
         {estadoConfig.erro && (
-          <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+          <p className="rounded-sm bg-red-50 p-3 text-sm text-red-700">
             {estadoConfig.erro}
           </p>
         )}
@@ -163,22 +163,22 @@ export function TesteVazaoCompleto({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="p-2 text-left">Tempo (min)</th>
-                  <th className="p-2 text-left">Nível dinâmico (m)</th>
-                  <th className="p-2 text-left">Rebaixamento (m)</th>
-                  <th className="p-2 text-left">Vazão (m³/h)</th>
+                  <th className="p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Tempo (min)</th>
+                  <th className="p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Nível dinâmico (m)</th>
+                  <th className="p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Rebaixamento (m)</th>
+                  <th className="p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Vazão (m³/h)</th>
                   <th className="p-2" />
                 </tr>
               </thead>
               <tbody>
                 {leituras.map((leitura, indice) => (
-                  <tr key={leitura.id} className="border-b border-gray-100 last:border-0">
-                    <td className="p-2">{leitura.tempoMinutos.toFixed(2)}</td>
-                    <td className="p-2">{leitura.nivelDinamico.toFixed(2)}</td>
-                    <td className="p-2">
+                  <tr key={leitura.id} className="border-b border-gray-100 bg-white last:border-0">
+                    <td className="p-2 font-mono">{leitura.tempoMinutos.toFixed(2)}</td>
+                    <td className="p-2 font-mono">{leitura.nivelDinamico.toFixed(2)}</td>
+                    <td className="p-2 font-mono">
                       {(leitura.nivelDinamico - nivelEstatico).toFixed(2)}
                     </td>
-                    <td className="p-2">
+                    <td className="p-2 font-mono">
                       {leitura.vazao !== null ? leitura.vazao.toFixed(3) : "—"}
                     </td>
                     <td className="p-2">
@@ -202,7 +202,7 @@ export function TesteVazaoCompleto({
         )}
 
         {estadoRemover.erro && (
-          <p className="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+          <p className="mt-2 rounded-sm bg-red-50 p-3 text-sm text-red-700">
             {estadoRemover.erro}
           </p>
         )}
@@ -272,7 +272,7 @@ export function TesteVazaoCompleto({
         </label>
 
         {estadoAdicionar.erro && (
-          <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+          <p className="rounded-sm bg-red-50 p-3 text-sm text-red-700">
             {estadoAdicionar.erro}
           </p>
         )}

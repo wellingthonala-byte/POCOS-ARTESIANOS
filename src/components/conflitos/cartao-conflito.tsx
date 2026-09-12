@@ -88,7 +88,7 @@ export function CartaoConflito({ conflito }: { conflito: ConflitoParaCartao }) {
       </div>
 
       {erro && (
-        <p className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{erro}</p>
+        <p className="mb-3 rounded-sm bg-red-50 p-3 text-sm text-red-700">{erro}</p>
       )}
 
       <div className="flex flex-col gap-2 sm:flex-row">

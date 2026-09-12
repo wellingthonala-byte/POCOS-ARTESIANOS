@@ -11,7 +11,7 @@ export default async function PaginaConflitos() {
   });
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-24">
+    <main className="mx-auto max-w-2xl p-4 pb-24 md:max-w-4xl md:p-8">
       <h1 className="mb-1 text-2xl font-bold">Conflitos de sincronização</h1>
       <p className="mb-6 text-gray-500">
         Alterações lançadas offline que não foram aplicadas porque o poço

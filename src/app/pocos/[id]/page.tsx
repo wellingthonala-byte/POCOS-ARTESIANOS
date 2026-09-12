@@ -54,7 +54,7 @@ export default async function DetalheDoPoco({
   const temPerfil = temDadosDePerfil({ camadas, construtivo, profundidadeTotal });
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-24">
+    <main className="mx-auto max-w-2xl p-4 pb-24 md:max-w-4xl md:p-8">
       <EspelharPocoOffline
         dados={{
           id: poco.id,

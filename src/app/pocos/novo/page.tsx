@@ -12,7 +12,7 @@ export default async function NovoPoco() {
   });
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-24">
+    <main className="mx-auto max-w-2xl p-4 pb-24 md:max-w-4xl md:p-8">
       <h1 className="mb-1 text-2xl font-bold">Novo poço</h1>
       <p className="mb-6 text-gray-500">
         Etapa 1 de 5 — Identificação e locação

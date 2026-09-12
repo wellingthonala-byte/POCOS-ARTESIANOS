@@ -27,7 +27,7 @@ export default async function EtapaIdentificacao({
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-24">
+    <main className="mx-auto max-w-2xl p-4 pb-24 md:max-w-4xl md:p-8">
       <h1 className="mb-1 font-mono text-2xl font-bold text-gray-900">Poço {poco.identificacao}</h1>
       <NavegacaoEtapas pocoId={poco.id} etapaAtual="identificacao" />
       <FormularioIdentificacaoLocacao

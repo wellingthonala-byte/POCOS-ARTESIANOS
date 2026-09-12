@@ -55,8 +55,13 @@ export default function RootLayout({
       >
         <RegistrarServiceWorker />
         <IndicadorConectividade />
-        <NavegacaoPrincipal />
-        {children}
+        {/* No mobile empilha (topo: barra; abaixo: conteúdo) — no desktop
+            vira duas colunas lado a lado (menu lateral fixo + conteúdo),
+            trocando só por classe responsiva, sem duplicar componente. */}
+        <div className="md:flex md:items-start">
+          <NavegacaoPrincipal />
+          <div className="min-w-0 md:flex-1">{children}</div>
+        </div>
       </body>
     </html>
   );

@@ -11,7 +11,7 @@ import { SCRIPT_OFFLINE } from "./script-offline";
 // embutido inline no próprio HTML desta página — ver `script-offline.ts`.
 export default function PaginaOffline() {
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-24">
+    <main className="mx-auto max-w-2xl p-4 pb-24 md:max-w-4xl md:p-8">
       <div id="conteudo-offline">
         <h1 className="text-2xl font-bold">Sem conexão</h1>
         <p className="mt-4 text-gray-600">

@@ -11,7 +11,7 @@ export default async function NovaObra() {
   });
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-24">
+    <main className="mx-auto max-w-2xl p-4 pb-24 md:max-w-4xl md:p-8">
       <h1 className="mb-6 text-2xl font-bold">Nova obra</h1>
       <FormularioObra
         clientes={clientes.map((cliente) => ({

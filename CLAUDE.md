@@ -106,6 +106,7 @@ calcular o diff de cada migration.
 ```
 src/
   app/
+    page.tsx              # Tela inicial (dashboard): resumo por status, atalhos, poços recentes
     clientes/            # CRUD de cliente (Fase 2)
     obras/                # CRUD de obra (Fase 2)
     configuracoes/        # Dados da empresa usados no relatório (Fase 3)
@@ -140,7 +141,8 @@ src/
     navegacao-principal.tsx  # Cabeçalho com links para Poços/Obras/Clientes/Configurações/Conflitos —
                              # de propósito sem busca de dado, ver comentário no arquivo
     ui/                    # Peças de UI compartilhadas entre seções (Cartao, CartaoLista,
-                           # LinhaMenu, BotaoNovoFlutuante) — identidade visual "prancheta de campo"
+                           # LinhaMenu, BotaoNovoFlutuante, CartaoEstatistica, LinhaTabela) —
+                           # identidade visual "prancheta de campo"
     clientes/
     obras/
     configuracoes/
@@ -866,6 +868,59 @@ laranja de segurança), não a um SaaS genérico — evita a estética clichê d
   poço + teste de vazão + análises + anexos) — sem rodar em aparelho
   físico real (mesma ressalva já registrada antes: emulação de viewport
   estreito no navegador não é o mesmo teste que um celular de verdade).
+
+### Tela inicial (dashboard) e menu lateral no desktop — segunda rodada
+
+Depois de ver a reformulação de cor/fonte acima, o feedback foi que
+"parece bonito, mas não parece um sistema" — faltava tela inicial com
+número/resumo, menu lateral (não barra no topo) e mais densidade de
+informação por tela. É uma mudança estrutural de navegação, não só de
+cor, então ficou registrada à parte.
+
+- **`/` deixou de ser um redirect pra `/pocos` e virou uma tela de
+  verdade** (`src/app/page.tsx`, `force-dynamic`): contagem de poços por
+  status, total de obras/clientes, contagem de conflito pendente (com
+  destaque visual se > 0) e lista dos 5 poços mais recentes. Isso também
+  resolve, de lambuja, o "acabamento pendente" da Fase 5 de não ter
+  contagem de conflito em lugar nenhum — a razão de não colocar ali era
+  especificamente `NavegacaoPrincipal` ser herdada pela página ESTÁTICA
+  `/offline`; a tela `/` é uma rota própria e dinâmica, então não tem
+  esse problema.
+- **`NavegacaoPrincipal` agora renderiza os DOIS formatos sempre
+  (escondidos um do outro por classe responsiva `md:hidden`/`hidden
+  md:flex`), nunca só um**: `<header>` com barra no topo pro celular
+  (igual antes) e `<aside>` com menu lateral fixo (`sticky`, altura de
+  tela cheia) pro desktop — mesma lista de links, mesma lógica de "aba
+  ativa", um só componente. Decidido não por preferência visual, mas
+  porque o público de cada formato é literalmente diferente (técnico de
+  campo no celular vs. escritório no desktop, ver seção "Sobre o
+  produto") — não faz sentido forçar os dois a usar o mesmo layout de
+  navegação. `layout.tsx` virou um `md:flex` (empilha no celular, duas
+  colunas lado a lado no desktop) pra acomodar isso.
+- **Container de conteúdo (`mx-auto max-w-2xl p-4 pb-24`, repetido
+  idêntico nas 21 páginas) ganhou `md:max-w-4xl md:p-8`** — mesma técnica
+  de alavancagem já usada pra cor/raio: troca mecânica (script, não
+  arquivo por arquivo manualmente) porque a string era 100% idêntica nas
+  21 ocorrências. Sem isso, o conteúdo ficava preso numa coluna estreita
+  de celular sobrando um vazio enorme dos dois lados numa tela de
+  desktop — provavelmente a maior causa isolada do "parece vazio".
+- **Listas de poço/cliente/obra ganharam uma segunda renderização
+  (tabela) só pro desktop**, escondida no celular (`md:hidden` no card,
+  `hidden md:block` na tabela) — mesma fonte de dado, dois `return` de
+  marcação. Tabela densa com mais coluna visível (obra, cliente, local,
+  profundidade, status tudo numa linha) é o padrão visual que um
+  "sistema de gestão" de verdade tem, contra o padrão "lista de cards"
+  que lê mais como app de celular. `LinhaTabela` (`src/components/ui/`) é
+  um client component que faz a linha inteira clicável via
+  `router.push` (`<tr>` não aceita virar link em HTML puro) — a célula
+  da identificação/nome continua tendo um `<Link>` de verdade por dentro,
+  pra abrir em nova aba/clique do meio/leitor de tela continuarem
+  funcionando sem depender só do clique.
+- **Testado de novo o fallback offline depois dessa mudança** (matando o
+  servidor de verdade, mesmo método de sempre): continua caindo em
+  `/offline` corretamente, com a barra do celular renderizando normal —
+  o `<aside>` de desktop simplesmente não aparece nesse teste (viewport
+  de celular), então não tem novo risco ali.
 
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —

@@ -1,6 +1,7 @@
 import puppeteer from "puppeteer";
 import { buscarDadosRelatorio } from "./dados";
 import { renderizarHtmlRelatorio } from "./template";
+import { escaparHtml } from "@/lib/escapar-html";
 
 const estiloCabecalhoRodape = `
   font-family: Arial, Helvetica, sans-serif;
@@ -17,7 +18,14 @@ export async function gerarRelatorioPdf(pocoId: string): Promise<Buffer | null> 
   if (!dados) return null;
 
   const html = await renderizarHtmlRelatorio(dados);
-  const nomeEmpresa = dados.configuracao?.nomeEmpresa ?? "";
+  // headerTemplate/footerTemplate do Puppeteer são HTML à parte do
+  // documento principal — não passam pelo escape do template.ts, então
+  // precisam do próprio escaparHtml aqui.
+  const nomeEmpresa = escaparHtml(dados.configuracao?.nomeEmpresa ?? "");
+  const cnpjEmpresa = dados.configuracao?.cnpj
+    ? ` — CNPJ ${escaparHtml(dados.configuracao.cnpj)}`
+    : "";
+  const identificacaoPoco = escaparHtml(dados.poco.identificacao);
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -36,8 +44,8 @@ export async function gerarRelatorioPdf(pocoId: string): Promise<Buffer | null> 
       margin: { top: "70px", bottom: "60px", left: "24px", right: "24px" },
       headerTemplate: `
         <div style="${estiloCabecalhoRodape}">
-          <span>${nomeEmpresa}</span>
-          <span>Poço ${dados.poco.identificacao}</span>
+          <span>${nomeEmpresa}${cnpjEmpresa}</span>
+          <span>Poço ${identificacaoPoco}</span>
         </div>
       `,
       footerTemplate: `

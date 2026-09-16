@@ -922,6 +922,79 @@ cor, então ficou registrada à parte.
   o `<aside>` de desktop simplesmente não aparece nesse teste (viewport
   de celular), então não tem novo risco ali.
 
+### Correção do relatório em PDF — fora das fases numeradas
+
+O relatório em PDF (`template.ts`) foi construído na Fase 3, antes de
+análise de água, teste de vazão completo e anexos existirem (Fase 6). Ele
+nunca foi revisado depois que essas três features passaram a existir — uma
+verificação direta gerando um PDF real e lendo página a página (não de
+memória) mostrou que `dados.ts` já buscava tudo isso do banco
+(`analisesAgua.parametros`, `testesVazao.leituras`, `anexos`,
+`configuracao.cnpj/endereco/telefone/email`), mas `template.ts` nunca
+renderizava boa parte disso — o relatório entregável a um órgão estadual
+estava, na prática, incompleto.
+
+- **Capa e cabeçalho de cada página passam a mostrar CNPJ e contato da
+  empresa**: a capa ganha um bloco `.capa-cabecalho` com CNPJ (linha
+  própria) e endereço/telefone/e-mail concatenados numa linha só
+  (`contatoEmpresa`, filtrando campos vazios e escapando cada um
+  individualmente antes de juntar com `" · "` — nunca escapar a string já
+  concatenada, que erraria o escape do separador). O cabeçalho impresso em
+  toda página (`pdf.ts`, `headerTemplate` do Puppeteer) ganhou o mesmo
+  CNPJ ao lado do nome da empresa.
+- **Bug real encontrado e corrigido de passagem, em `pdf.ts`**:
+  `headerTemplate`/`footerTemplate` do Puppeteer são strings de HTML
+  SEPARADAS do documento principal — não passam pelo `escaparHtml` que
+  `template.ts` já aplica em todo o resto. Nome da empresa e identificação
+  do poço estavam sendo interpolados ali sem escape nenhum desde a Fase 3;
+  como esses dois campos vêm de cadastro (não de entrada livre de
+  qualquer visitante), o risco prático sempre foi baixo, mas é a mesma
+  regra que vale pro resto do template — corrigido aplicando `escaparHtml`
+  também aqui.
+- **Nova seção "Teste de vazão" com a tabela de leituras + os mesmos dois
+  gráficos SVG da tela (`gerarSvgGraficoLinha`)**: só aparece se o poço
+  tiver leituras lançadas (`testeVazao.leituras.length > 0`) — mesmo
+  raciocínio de "não mostrar seção vazia" já usado pra reportagem de
+  fotos/gráfico de vazão×rebaixamento na tela da Fase 6. Rebaixamento por
+  leitura é recalculado no template (`nivelDinamico - nivelEstatico`), não
+  lido de um campo — não existe coluna de rebaixamento persistida (é
+  sempre derivado, ver Glossário do domínio). Reaproveita a mesma função
+  de gráfico da Fase 6 em vez de desenhar de novo — mesma lógica de
+  reaproveitamento já usada pro desenho do perfil na Fase 4.
+- **Nova seção "Análise de água"** com uma tabela por coleta (parâmetro,
+  valor, unidade, VMP) — `foraDoPadrao` reimplementa no template a mesma
+  comparação simples client-side já usada em `lista-parametros.tsx`
+  (`valor < vmpMinimo` ou `valor > vmpMaximo`), já que aqui é geração de
+  HTML no servidor, sem acesso ao componente cliente da tela. Parâmetro
+  fora do padrão ganha a classe `.fora-do-padrao` (fundo vermelho claro +
+  texto em negrito vermelho escuro) — o mesmo destaque que a tela já
+  mostra, agora também no documento entregue ao órgão.
+- **Nova seção "Documentos anexados"**: lista croqui/ART/laudo (todo anexo
+  com `tipo !== "foto"`) como checklist de conferência — o relatório não
+  embute o PDF de dentro de outro PDF (complexidade desproporcional pra
+  esta correção), só avisa quem for protocolar quais arquivos originais
+  precisam ir junto. Quando o anexo é imagem (ex.: uma ART fotografada em
+  papel, ver decisão da Fase 6 etapa 3 sobre extensão aceita não travar por
+  tipo), a miniatura é embutida do mesmo jeito que a seção "Fotos" já faz
+  (`lerAnexoComoDataUri`) — PDF não gera miniatura, só aparece o nome do
+  arquivo e o rótulo do tipo.
+- **Testado gerando o PDF de verdade (poço PT-01 do seed) antes e depois
+  da correção, lendo página a página como imagem** (`poppler-utils`
+  instalado nesta sessão especificamente para isso — sem isso o Read tool
+  não renderiza páginas de PDF): confirmado visualmente que capa e
+  cabeçalho passaram a mostrar CNPJ/contato, a seção de teste de vazão
+  aparece com tabela e os dois gráficos, a seção de análise de água aparece
+  com a tabela de parâmetros, e a lista de documentos anexados aparece
+  antes da assinatura. Pra confirmar o destaque de `.fora-do-padrao` de
+  verdade (o seed não tem nenhum parâmetro fora do VMP), foi inserido um
+  parâmetro de teste temporário fora da faixa direto no banco, confirmado
+  visualmente o destaque vermelho no PDF gerado, e removido em seguida —
+  não ficou no seed.
+- **Excel (`excel.ts`) não foi tocado nesta correção**: o gap identificado
+  foi especificamente no PDF (documento entregável ao órgão/cliente); o
+  plano já trata Excel como saída secundária "sem formatação elaborada" —
+  revisar separadamente se precisar.
+
 Ver `plano-sistema-relatorios-pocos.md`, seção 3, para a lista completa.
 Cada fase é implementada e revisada antes de avançar para a próxima —
 não adiante trabalho de uma fase futura sem que tenha sido pedido.

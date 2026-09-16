@@ -3,12 +3,15 @@ import {
   rotulosMetodoObtencaoCoordenada,
   rotulosMetodoPerfuracao,
   rotulosTipoRevestimento,
+  rotulosTipoAnexo,
+  rotulosTipoTesteVazao,
 } from "@/lib/rotulos";
 import { escaparHtml } from "@/lib/escapar-html";
 import { gerarSvgPerfilPoco } from "@/lib/perfil/perfil";
 import { calcularEscalaAutomatica } from "@/lib/perfil/escala";
 import { mapearDadosParaPerfil, temDadosDePerfil } from "@/lib/perfil/mapear-dados";
 import { lerAnexoComoDataUri } from "@/lib/anexos/armazenamento";
+import { gerarSvgGraficoLinha } from "@/lib/graficos/grafico-linha";
 
 // Next.js proíbe importar react-dom/server no grafo de módulos de um Route
 // Handler ("renderize como Server Component em vez disso"). Como este HTML
@@ -63,13 +66,25 @@ async function renderizarCorpoRelatorio(dados: DadosRelatorio): Promise<string> 
           Number(testeVazao.nivelEstatico))
       : null;
 
+  // CNPJ/endereço/telefone/email são cadastrados em /configuracoes
+  // justamente pra aparecer no relatório — mostrar só o nome da empresa
+  // deixava esse cadastro sem efeito nenhum no documento final.
+  const contatoEmpresa = [configuracao?.endereco, configuracao?.telefone, configuracao?.email]
+    .filter((valor): valor is string => Boolean(valor))
+    .map((valor) => escaparHtml(valor))
+    .join(" · ");
+
   const capa = `
     <section class="capa">
-      ${
-        configuracao?.logoUrl
-          ? `<img src="${escaparHtml(configuracao.logoUrl)}" alt="${escaparHtml(nomeEmpresa)}" />`
-          : `<p class="nome-empresa">${escaparHtml(nomeEmpresa)}</p>`
-      }
+      <div class="capa-cabecalho">
+        ${
+          configuracao?.logoUrl
+            ? `<img src="${escaparHtml(configuracao.logoUrl)}" alt="${escaparHtml(nomeEmpresa)}" />`
+            : `<p class="nome-empresa">${escaparHtml(nomeEmpresa)}</p>`
+        }
+        ${configuracao?.cnpj ? `<p class="capa-cnpj">CNPJ ${escaparHtml(configuracao.cnpj)}</p>` : ""}
+        ${contatoEmpresa ? `<p class="capa-contato">${contatoEmpresa}</p>` : ""}
+      </div>
       <h1>Relatório Técnico de Poço Tubular</h1>
       <p class="capa-identificacao">Poço ${escaparHtml(poco.identificacao)}</p>
       <div class="capa-info">
@@ -266,6 +281,158 @@ async function renderizarCorpoRelatorio(dados: DadosRelatorio): Promise<string> 
     </section>`
     : "";
 
+  // Detalhe do teste de vazão (leitura por leitura + gráficos), separado
+  // do resumo acima — mesma separação que já existe na tela (etapa 5 vs.
+  // /teste-vazao completo). Reaproveita gerarSvgGraficoLinha, a mesma
+  // função usada na tela (Fase 6), com os mesmos critérios de quando
+  // mostrar cada gráfico: rebaixamento×tempo sempre que houver leitura,
+  // vazão×rebaixamento só se alguma leitura tiver vazão lançada.
+  const leituras = testeVazao?.leituras ?? [];
+  const testeVazaoDetalhado =
+    testeVazao && leituras.length > 0
+      ? (() => {
+          const nivelEstaticoNum = Number(testeVazao.nivelEstatico);
+          const leiturasComVazao = leituras.filter((l) => l.vazao !== null);
+
+          const graficoRebaixamento = gerarSvgGraficoLinha(
+            leituras.map((l) => ({
+              x: Number(l.tempoMinutos),
+              y: Number(l.nivelDinamico) - nivelEstaticoNum,
+            })),
+            { rotuloEixoX: "Tempo (min)", rotuloEixoY: "Rebaixamento (m)" }
+          );
+          const graficoVazao =
+            leiturasComVazao.length > 0
+              ? gerarSvgGraficoLinha(
+                  leiturasComVazao.map((l) => ({
+                    x: Number(l.nivelDinamico) - nivelEstaticoNum,
+                    y: Number(l.vazao),
+                  })),
+                  {
+                    rotuloEixoX: "Rebaixamento (m)",
+                    rotuloEixoY: "Vazão (m³/h)",
+                    cor: "#d9691d",
+                  }
+                )
+              : "";
+
+          return `
+    <section class="teste-vazao">
+      <h2>Teste de vazão — ${escaparHtml(rotulosTipoTesteVazao[testeVazao.tipo] ?? testeVazao.tipo)}</h2>
+      <table>
+        <thead>
+          <tr><th>Tempo (min)</th><th>Nível dinâmico (m)</th><th>Rebaixamento (m)</th><th>Vazão (m³/h)</th></tr>
+        </thead>
+        <tbody>
+          ${leituras
+            .map(
+              (l) => `
+            <tr>
+              <td>${formatarDecimal(l.tempoMinutos)}</td>
+              <td>${formatarDecimal(l.nivelDinamico)}</td>
+              <td>${formatarDecimal(Number(l.nivelDinamico) - nivelEstaticoNum)}</td>
+              <td>${l.vazao !== null ? formatarDecimal(l.vazao, 3) : "—"}</td>
+            </tr>`
+            )
+            .join("")}
+        </tbody>
+      </table>
+      <div class="grade-graficos">
+        <div>${graficoRebaixamento}</div>
+        ${graficoVazao ? `<div>${graficoVazao}</div>` : ""}
+      </div>
+    </section>`;
+        })()
+      : "";
+
+  // Cada análise é sua própria subseção (data + laboratório + tabela de
+  // parâmetro) — "fora do padrão" repete a mesma comparação simples da
+  // tela (lista-parametros.tsx): não dá pra fazer isso em SQL (Prisma não
+  // compara duas colunas da mesma linha num where), então é feito aqui
+  // depois de já ter buscado tudo, igual lá.
+  const analiseAgua =
+    poco.analisesAgua.length > 0
+      ? `
+    <section class="analise-agua">
+      <h2>Análise de água</h2>
+      ${poco.analisesAgua
+        .map((analise) => {
+          const foraDoPadrao = (p: (typeof analise.parametros)[number]) => {
+            const valor = Number(p.valor);
+            if (p.vmpMinimo !== null && valor < Number(p.vmpMinimo)) return true;
+            if (p.vmpMaximo !== null && valor > Number(p.vmpMaximo)) return true;
+            return false;
+          };
+          return `
+      <h3>
+        Coleta em ${formatarData(analise.dataColeta)}${analise.laboratorio ? ` — ${escaparHtml(analise.laboratorio)}` : ""}
+      </h3>
+      ${
+        analise.parametros.length > 0
+          ? `
+      <table>
+        <thead>
+          <tr><th>Parâmetro</th><th>Valor</th><th>Unidade</th><th>VMP</th></tr>
+        </thead>
+        <tbody>
+          ${analise.parametros
+            .map((p) => {
+              const vmp =
+                p.vmpMinimo !== null || p.vmpMaximo !== null
+                  ? `${p.vmpMinimo !== null ? formatarDecimal(p.vmpMinimo) : "—"} a ${p.vmpMaximo !== null ? formatarDecimal(p.vmpMaximo) : "—"}`
+                  : "—";
+              const foraClasse = foraDoPadrao(p) ? ' class="fora-do-padrao"' : "";
+              return `
+            <tr${foraClasse}>
+              <td>${escaparHtml(p.nome)}</td>
+              <td>${formatarDecimal(p.valor)}</td>
+              <td>${escaparHtml(p.unidade)}</td>
+              <td>${vmp}</td>
+            </tr>`;
+            })
+            .join("")}
+        </tbody>
+      </table>`
+          : `<p class="diametros-trecho">Nenhum parâmetro lançado nesta coleta.</p>`
+      }`;
+        })
+        .join("")}
+    </section>`
+      : "";
+
+  // Croqui/ART/laudo (diferente de foto) existem pra documentar, não pra
+  // ilustrar — por isso viram uma lista de conferência (nome + legenda),
+  // com miniatura só quando o arquivo enviado for imagem (comum: técnico
+  // fotografa o papel em vez de anexar o PDF original). PDF anexado não é
+  // embutido — precisaria de uma lib de manipulação de PDF só pra isso, e
+  // o ganho não compensa; o nome do arquivo já entra na lista de conferência.
+  const ehImagemAnexo = (nomeArquivo: string) => /\.(jpe?g|png|webp|heic|heif)$/i.test(nomeArquivo);
+  const documentosParaRelatorio = poco.anexos.filter((anexo) => anexo.tipo !== "foto");
+  const itensDocumentos = (
+    await Promise.all(
+      documentosParaRelatorio.map(async (anexo) => {
+        const rotuloTipo = escaparHtml(rotulosTipoAnexo[anexo.tipo] ?? anexo.tipo);
+        const legenda = anexo.legenda ? escaparHtml(anexo.legenda) : "";
+        const dataUri = ehImagemAnexo(anexo.nomeArquivo)
+          ? await lerAnexoComoDataUri(anexo.pocoId, anexo.id, anexo.nomeArquivo)
+          : null;
+        return `
+          <li>
+            ${dataUri ? `<img src="${dataUri}" alt="${rotuloTipo}" />` : ""}
+            <span><strong>${rotuloTipo}</strong> — ${escaparHtml(anexo.nomeArquivo)}${legenda ? ` (${legenda})` : ""}</span>
+          </li>`;
+      })
+    )
+  ).join("");
+  const documentosAnexados = itensDocumentos
+    ? `
+    <section class="documentos">
+      <h2>Documentos anexados</h2>
+      <p class="diametros-trecho">Lista de conferência — anexar junto ao protocolo os arquivos originais listados abaixo.</p>
+      <ul class="lista-documentos">${itensDocumentos}</ul>
+    </section>`
+    : "";
+
   // Só fotos (não ART/croqui/laudo) marcadas com incluirNoRelatorio entram
   // aqui — os outros tipos de anexo existem só pra guardar/consultar
   // documento, não pra ilustrar o relatório impresso.
@@ -315,7 +482,10 @@ async function renderizarCorpoRelatorio(dados: DadosRelatorio): Promise<string> 
     litologia,
     construtivo,
     niveisEVazao,
+    testeVazaoDetalhado,
+    analiseAgua,
     fotos,
+    documentosAnexados,
     assinatura,
   ].join("\n");
 }
@@ -352,7 +522,10 @@ const estilos = `
     padding-top: 140px;
   }
   .capa img { max-height: 90px; margin-bottom: 24px; }
-  .capa .nome-empresa { font-size: 16px; font-weight: 700; margin-bottom: 40px; }
+  .capa-cabecalho { margin-bottom: 40px; }
+  .capa .nome-empresa { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
+  .capa-cnpj { font-size: 10px; color: #555; margin: 0 0 2px; }
+  .capa-contato { font-size: 10px; color: #555; margin: 0; }
   .capa-identificacao { font-size: 18px; font-weight: 600; margin-top: 16px; }
   .capa-info { margin-top: 24px; color: #444; }
   .capa-info p { margin: 4px 0; }
@@ -360,6 +533,15 @@ const estilos = `
   .grade-fotos figure { margin: 0; break-inside: avoid; }
   .grade-fotos img { width: 100%; max-height: 260px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px; }
   .grade-fotos figcaption { font-size: 10px; color: #555; margin-top: 4px; text-align: center; }
+  .teste-vazao { break-before: page; }
+  .grade-graficos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+  .grade-graficos svg { display: block; width: 100%; height: auto; }
+  .analise-agua { break-before: page; }
+  .fora-do-padrao { background: #fbe4e4; font-weight: 700; color: #8a1f1f; }
+  .documentos { break-inside: avoid; }
+  .lista-documentos { list-style: none; margin: 0; padding: 0; }
+  .lista-documentos li { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px dotted #ccc; break-inside: avoid; }
+  .lista-documentos img { width: 60px; height: 60px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px; flex-shrink: 0; }
   .assinatura { margin-top: 60px; break-inside: avoid; text-align: center; }
   .linha-assinatura { border-top: 1px solid #000; width: 320px; margin: 60px auto 8px; }
   .assinatura-nome { font-weight: 600; margin: 0; }
